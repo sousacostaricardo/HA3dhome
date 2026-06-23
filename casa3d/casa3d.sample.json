@@ -1,0 +1,17 @@
+{
+  "meta": { "name": "A minha casa" },
+  "rooms": [
+    { "id": "sala", "name": "Sala", "poly": [[-4,0],[0,0],[0,3],[-4,3]], "tone": 2436921 },
+    { "id": "cozinha", "name": "Cozinha", "poly": [[0,0],[4,0],[4,3],[0,3]], "tone": 2238005 }
+  ],
+  "walls": [
+    { "a": [-4,3], "b": [4,3], "o": [{ "at": 0.25, "w": 1.4, "k": "win" }] },
+    { "a": [-4,-3], "b": [-4,3], "o": [{ "at": 0.75, "w": 1.0, "k": "door" }] },
+    { "a": [0,-3], "b": [0,3], "o": [{ "at": 0.75, "w": 0.9, "k": "door" }] },
+    { "a": [-4,0], "b": [4,0], "o": [{ "at": 0.25, "w": 0.9, "k": "door" }] }
+  ],
+  "devices": [
+    { "id": "l_sala", "entity": "light.SUBSTITUIR", "type": "light", "name": "Luz Sala", "room": "sala", "pos": [-2,1.5] },
+    { "id": "clima", "entity": "climate.SUBSTITUIR", "type": "climate", "name": "Termostato", "room": "sala", "pos": [-3.4,2.6] }
+  ]
+}

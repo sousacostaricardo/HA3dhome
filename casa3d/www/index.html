@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Casa 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0E1116; --slate:#1A1F28; --line:#2C3543; --mist:#8B97A7; --bone:#EAEEF3;
+    --ember:#FF5C38; --cyan:#3DD6C4;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;background:var(--ink);color:var(--bone);
+    font-family:"Space Grotesk",system-ui,sans-serif;overflow:hidden;}
+  #app{position:fixed;inset:0;}
+  canvas{display:block;touch-action:none;}
+
+  .brand{position:fixed;top:16px;left:18px;z-index:5;pointer-events:none;}
+  .brand h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.22em;}
+  .brand h1 .dot{color:var(--ember);}
+  .brand p{margin:3px 0 0;font-family:"IBM Plex Mono",monospace;font-size:10px;
+    letter-spacing:.16em;color:var(--mist);text-transform:uppercase;}
+
+  .panel{position:fixed;z-index:5;top:60px;right:16px;width:284px;
+    background:rgba(20,25,32,.82);backdrop-filter:blur(14px);
+    border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,.5);}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;
+    padding:12px 15px 10px;border-bottom:1px solid var(--line);}
+  .panel-head .t{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--mist);}
+  .panel-head .n{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--bone);}
+  .rows{max-height:min(54vh,440px);overflow-y:auto;}
+  .row{display:flex;align-items:center;gap:11px;padding:11px 15px;cursor:pointer;
+    border-bottom:1px solid rgba(44,53,67,.5);transition:background .15s;}
+  .row:last-child{border-bottom:none;}
+  .row:hover{background:rgba(255,255,255,.03);}
+  .row.ro{cursor:default;}
+  .swatch{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:var(--line);transition:.2s;}
+  .swatch.on{background:var(--ember);box-shadow:0 0 10px var(--ember);}
+  .swatch.cool{background:var(--cyan);box-shadow:0 0 10px var(--cyan);}
+  .row .meta{flex:1;min-width:0;}
+  .row .name{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .row .sub{font-size:10px;color:var(--mist);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .row .val{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--bone);flex:0 0 auto;text-align:right;}
+  .row .val.dim{color:var(--mist);}
+
+  .dock{position:fixed;z-index:5;left:18px;bottom:18px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .btn{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;color:var(--bone);
+    background:rgba(20,25,32,.82);border:1px solid var(--line);padding:9px 13px;border-radius:10px;
+    cursor:pointer;backdrop-filter:blur(14px);transition:.15s;text-transform:uppercase;}
+  .btn:hover{border-color:var(--mist);}
+  .btn.active{border-color:var(--cyan);color:var(--cyan);}
+
+  .banner{position:fixed;z-index:6;top:14px;left:50%;transform:translateX(-50%);
+    background:rgba(255,92,56,.12);border:1px solid rgba(255,92,56,.4);color:#ffb9a6;
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.04em;
+    padding:7px 13px;border-radius:9px;display:none;max-width:90vw;text-align:center;}
+
+  #loader{position:fixed;inset:0;z-index:20;background:var(--ink);display:flex;
+    align-items:center;justify-content:center;flex-direction:column;gap:14px;
+    transition:opacity .6s;font-family:"IBM Plex Mono",monospace;}
+  #loader .bar{width:140px;height:2px;background:var(--line);overflow:hidden;border-radius:2px;}
+  #loader .bar i{display:block;height:100%;width:30%;background:var(--ember);animation:slide 1s infinite ease-in-out;}
+  #loader span{font-size:10px;letter-spacing:.22em;color:var(--mist);text-transform:uppercase;}
+  @keyframes slide{0%{transform:translateX(-120%)}100%{transform:translateX(420%)}}
+
+  @media (max-width:760px){
+    .panel{top:auto;bottom:0;right:0;left:0;width:100%;border-radius:16px 16px 0 0;border-bottom:none;}
+    .rows{max-height:32vh;}
+    .dock{bottom:calc(32vh + 70px);}
+    .brand h1{font-size:16px;}
+  }
+  @media (prefers-reduced-motion:reduce){#loader .bar i{animation:none;width:100%;}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="brand"><h1>CASA 3D<span class="dot">.</span></h1><p>Gémeo digital · ao vivo</p></div>
+<div class="banner" id="banner"></div>
+
+<div class="panel">
+  <div class="panel-head"><span class="t">Dispositivos</span><span class="n" id="clock">--:--</span></div>
+  <div class="rows" id="rows"></div>
+</div>
+
+<div class="dock">
+  <button class="btn" id="btnReset">Recentrar</button>
+  <button class="btn" id="btnNight">Noite</button>
+  <button class="btn active" id="btnSpin">Rodar</button>
+  <button class="btn" id="btnDemo">Demo</button>
+</div>
+
+<div id="loader"><div class="bar"><i></i></div><span>a projetar a casa</span></div>
+
+<script src="./three.min.js"></script>
+<script src="./OrbitControls.js"></script>
+<script>
+/* ============================================================================
+   CASA 3D — Home Assistant add-on frontend.
+   Talks to the add-on's bridge server:
+     GET  ./api/home      -> floor-plan schema (or {use_builtin:true})
+     GET  ./api/states    -> HA states (proxied)
+     POST ./api/service    -> {domain, service, entity_id}
+   If those calls fail (e.g. opened outside HA) OR no mapped entities exist yet,
+   it falls back to DEMO mode with simulated states, so the house is always alive.
+   ============================================================================ */
+
+const WALL_H=2.6, WALL_T=0.12, DOOR_TOP=2.05, WIN_SILL=0.95, WIN_TOP=2.05;
+const REFRESH_MS=3000;
+
+/* ---- built-in template (used until you ship your own casa3d.json) -------- */
+const BUILTIN_HOME = {
+  meta:{ name:"Apartamento" },
+  rooms:[
+    { id:"sala",    name:"Sala",          poly:[[-4,0],[0,0],[0,3],[-4,3]],  tone:0x252d39 },
+    { id:"cozinha", name:"Cozinha",       poly:[[0,0],[4,0],[4,3],[0,3]],    tone:0x222a35 },
+    { id:"quarto",  name:"Quarto",        poly:[[-4,-3],[0,-3],[0,0],[-4,0]],tone:0x262e3a },
+    { id:"banho",   name:"Casa de Banho", poly:[[0,-3],[4,-3],[4,0],[0,0]],  tone:0x202732 },
+  ],
+  walls:[
+    { a:[-4,3],  b:[4,3],  o:[{at:0.25,w:1.4,k:"win"},{at:0.75,w:1.4,k:"win"}] },
+    { a:[-4,-3], b:[4,-3], o:[{at:0.25,w:1.4,k:"win"}] },
+    { a:[-4,-3], b:[-4,3], o:[{at:0.75,w:1.0,k:"door"}] },
+    { a:[4,-3],  b:[4,3],  o:[{at:0.75,w:1.4,k:"win"}] },
+    { a:[0,-3],  b:[0,3],  o:[{at:0.25,w:0.9,k:"door"},{at:0.75,w:0.9,k:"door"}] },
+    { a:[-4,0],  b:[4,0],  o:[{at:0.25,w:0.9,k:"door"},{at:0.75,w:0.9,k:"door"}] },
+  ],
+  devices:[
+    { id:"l_sala", entity:"light.sala",     type:"light",   name:"Candeeiro Sala", room:"sala",    pos:[-2,1.5] },
+    { id:"l_coz",  entity:"light.cozinha",  type:"light",   name:"Luz Cozinha",    room:"cozinha", pos:[2,1.5] },
+    { id:"l_qua",  entity:"light.quarto",   type:"light",   name:"Luz Quarto",     room:"quarto",  pos:[-2,-1.5] },
+    { id:"clima",  entity:"climate.sala",   type:"climate", name:"Termostato",     room:"sala",    pos:[-3.4,2.6] },
+    { id:"estore", entity:"cover.estore_sala", type:"cover",name:"Estore Sala",    room:"sala",    pos:[-2,2.9] },
+    { id:"porta",  entity:"binary_sensor.porta", type:"sensor", name:"Porta Entrada", room:"sala", pos:[-3.92,1.5] },
+    { id:"mov",    entity:"binary_sensor.mov_cozinha", type:"sensor", name:"Movimento Cozinha", room:"cozinha", pos:[3.4,2.6] },
+  ],
+};
+/* simulated states for demo mode (keyed by the built-in entity ids) */
+const DEMO_STATES = {
+  "light.sala":{state:"on",attributes:{}}, "light.cozinha":{state:"off",attributes:{}},
+  "light.quarto":{state:"off",attributes:{}},
+  "climate.sala":{state:"heat",attributes:{current_temperature:21.5}},
+  "cover.estore_sala":{state:"open",attributes:{current_position:60}},
+  "binary_sensor.porta":{state:"off",attributes:{device_class:"door"}},
+  "binary_sensor.mov_cozinha":{state:"off",attributes:{device_class:"motion"}},
+};
+
+let HOME = BUILTIN_HOME;
+let STATES = {};            // live states from HA
+let SIM = JSON.parse(JSON.stringify(DEMO_STATES));
+let DEMO = false;
+
+function getState(id){
+  if(DEMO) return SIM[id] || {state:"unavailable",attributes:{}};
+  return STATES[id] || {state:"unavailable",attributes:{}};
+}
+
+/* ---------- scene -------------------------------------------------------- */
+const app=document.getElementById('app');
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0E1116);
+scene.fog=new THREE.Fog(0x0E1116,16,34);
+const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,0.1,200);
+const CAM_HOME=new THREE.Vector3(8.5,9,11); camera.position.copy(CAM_HOME);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputEncoding=THREE.sRGBEncoding;
+app.appendChild(renderer.domElement);
+
+const controls=new THREE.OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.08;
+controls.minDistance=6; controls.maxDistance=26; controls.maxPolarAngle=Math.PI*0.49;
+controls.target.set(0,0.4,0); controls.autoRotate=true; controls.autoRotateSpeed=0.55;
+
+scene.add(new THREE.HemisphereLight(0x3a4658,0x0a0d12,0.9));
+const dir=new THREE.DirectionalLight(0xcdd8e6,0.55); dir.position.set(6,12,4); scene.add(dir);
+const fill=new THREE.DirectionalLight(0x2a3445,0.3); fill.position.set(-7,5,-6); scene.add(fill);
+const hemi=scene.children.find(c=>c.isHemisphereLight);
+
+const grid=new THREE.GridHelper(40,40,0x223040,0x18222e);
+grid.position.y=-0.02; grid.material.transparent=true; grid.material.opacity=0.5; scene.add(grid);
+const pad=new THREE.Mesh(new THREE.CircleGeometry(7.6,64),
+  new THREE.MeshBasicMaterial({color:0x0c1f26,transparent:true,opacity:0.35}));
+pad.rotation.x=-Math.PI/2; pad.position.y=-0.015; scene.add(pad);
+
+const houseGroup=new THREE.Group(); scene.add(houseGroup);
+
+/* ---------- materials ---------------------------------------------------- */
+const matWall =new THREE.MeshStandardMaterial({color:0x2C353F,roughness:0.95,metalness:0,flatShading:true});
+const matTrim =new THREE.MeshStandardMaterial({color:0x39434f,roughness:0.9, metalness:0,flatShading:true});
+const matGlass=new THREE.MeshStandardMaterial({color:0x6fd0e0,roughness:0.15,metalness:0,transparent:true,opacity:0.18});
+const matCover=new THREE.MeshStandardMaterial({color:0x4a5563,roughness:0.85,flatShading:true});
+
+const haloTex=makeHalo();
+const roomMeshes={};
+let devices=[];
+
+/* ---------- builders ----------------------------------------------------- */
+function buildRooms(){
+  HOME.rooms.forEach((r,idx)=>{
+    const shape=new THREE.Shape();
+    r.poly.forEach(([x,z],i)=> i?shape.lineTo(x,-z):shape.moveTo(x,-z));
+    shape.closePath();
+    const geo=new THREE.ShapeGeometry(shape); geo.rotateX(-Math.PI/2);
+    const floor=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:r.tone,roughness:1,metalness:0,flatShading:true}));
+    houseGroup.add(floor);
+    const line=new THREE.LineSegments(new THREE.EdgesGeometry(geo),
+      new THREE.LineBasicMaterial({color:0x3a4654,transparent:true,opacity:0.6}));
+    line.position.y=0.002; houseGroup.add(line);
+    const tintMat=new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0,depthWrite:false});
+    const tint=new THREE.Mesh(geo.clone(),tintMat); tint.position.y=0.04; houseGroup.add(tint);
+    const c=polyCentroid(r.poly);
+    const lbl=makeLabel((r.name||"").toUpperCase(),0x8B97A7,0.32); lbl.position.set(c[0],0.06,c[1]); houseGroup.add(lbl);
+    roomMeshes[r.id]={floor,tintMat};
+  });
+}
+function buildWalls(){
+  HOME.walls.forEach(w=>{
+    const a=new THREE.Vector2(w.a[0],w.a[1]), b=new THREE.Vector2(w.b[0],w.b[1]), L=a.distanceTo(b);
+    const ops=(w.o||[]).map(o=>{const c=o.at*L; const sill=o.k==="win"?WIN_SILL:0; const top=o.k==="win"?WIN_TOP:DOOR_TOP;
+      return {s0:c-o.w/2,s1:c+o.w/2,sill,top,kind:o.k};}).sort((p,q)=>p.s0-q.s0);
+    let cur=0;
+    ops.forEach(op=>{
+      if(op.s0>cur) addWall(a,b,cur,op.s0,0,WALL_H);
+      if(op.sill>0) addWall(a,b,op.s0,op.s1,0,op.sill);
+      if(op.top<WALL_H) addWall(a,b,op.s0,op.s1,op.top,WALL_H,matTrim);
+      if(op.kind==="win") addGlass(a,b,op.s0,op.s1,op.sill,op.top);
+      cur=op.s1;
+    });
+    if(cur<L) addWall(a,b,cur,L,0,WALL_H);
+  });
+}
+function addWall(a,b,s0,s1,y0,y1,mat){
+  const len=s1-s0; if(len<=0.001) return;
+  const d=b.clone().sub(a).normalize(); const mid=s0+len/2;
+  const px=a.x+d.x*mid, pz=a.y+d.y*mid;
+  const geo=new THREE.BoxGeometry(len,y1-y0,WALL_T);
+  const m=new THREE.Mesh(geo,mat||matWall);
+  m.position.set(px,(y0+y1)/2,pz); m.rotation.y=-Math.atan2(d.y,d.x); houseGroup.add(m);
+  const eg=new THREE.LineSegments(new THREE.EdgesGeometry(geo),
+    new THREE.LineBasicMaterial({color:0x434f5c,transparent:true,opacity:0.45}));
+  eg.position.copy(m.position); eg.rotation.copy(m.rotation); houseGroup.add(eg);
+}
+function addGlass(a,b,s0,s1,sill,top){
+  const len=s1-s0; const d=b.clone().sub(a).normalize(); const mid=s0+len/2;
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(len,top-sill),matGlass);
+  m.position.set(a.x+d.x*mid,(sill+top)/2,a.y+d.y*mid);
+  m.rotation.y=-Math.atan2(d.y,d.x)+Math.PI/2; houseGroup.add(m);
+}
+
+function buildDevices(){
+  devices=[];
+  HOME.devices.forEach(def=>{
+    if(def.type==="light")   devices.push(makeLight(def));
+    else if(def.type==="climate") devices.push(makeClimate(def));
+    else if(def.type==="cover")   devices.push(makeCover(def));
+    else devices.push(makeSensor(def));
+  });
+}
+function makeLight(def){
+  const g=new THREE.Group();
+  const bulb=new THREE.Mesh(new THREE.IcosahedronGeometry(0.22,0),
+    new THREE.MeshStandardMaterial({color:0x2a3340,emissive:0x000000,roughness:0.4,flatShading:true}));
+  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:haloTex,color:0xFF5C38,transparent:true,opacity:0,depthWrite:false}));
+  halo.scale.set(2.6,2.6,1);
+  const pl=new THREE.PointLight(0xFF7A4D,0,5,2);
+  g.add(bulb,halo,pl); g.position.set(def.pos[0],2.25,def.pos[1]); houseGroup.add(g);
+  return {def,ro:false,hit:[bulb],apply(){
+    const on=getState(def.entity).state==="on";
+    bulb.material.emissive.setHex(on?0xFF5C38:0x000000); bulb.material.emissiveIntensity=on?1.4:0;
+    halo.material.opacity=on?0.55:0;
+    const night=scene.background.getHex()<0x0c0f13; pl.intensity=on?(night?2.6:1.5):0;
+  }};
+}
+function makeClimate(def){
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.32,0.12),matTrim.clone());
+  body.position.set(def.pos[0],1.45,def.pos[1]); houseGroup.add(body);
+  const lbl=makeLabel("--",0x3DD6C4,0.26); lbl.position.set(def.pos[0],1.78,def.pos[1]); houseGroup.add(lbl);
+  return {def,ro:true,hit:[body],apply(){
+    const st=getState(def.entity); const t=st.attributes&&st.attributes.current_temperature;
+    if(t==null){ setLabel(lbl,"--"); return; }
+    setLabel(lbl,Number(t).toFixed(1)+"°");
+    const k=Math.max(0,Math.min(1,(t-18)/6));
+    const col=new THREE.Color(0x3DD6C4).lerp(new THREE.Color(0xFF5C38),k);
+    const rm=roomMeshes[def.room]; if(rm){rm.tintMat.color.copy(col); rm.tintMat.opacity=0.14;}
+  }};
+}
+function makeCover(def){
+  const slats=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.1,0.05),matCover.clone());
+  slats.position.set(def.pos[0],WIN_TOP-0.55,def.pos[1]); houseGroup.add(slats);
+  return {def,ro:false,hit:[slats],apply(){
+    const st=getState(def.entity);
+    let pos=(st.attributes&&st.attributes.current_position);
+    if(pos==null) pos = st.state==="open"?100 : st.state==="closed"?0 : 50;
+    const drop=1-pos/100; const H=1.1;
+    slats.scale.y=Math.max(0.04,drop);
+    slats.position.y=WIN_TOP-(H*slats.scale.y)/2;
+  }};
+}
+function makeSensor(def){
+  const m=new THREE.Mesh(new THREE.OctahedronGeometry(0.16,0),
+    new THREE.MeshStandardMaterial({color:0x39434f,emissive:0x000000,roughness:0.5,flatShading:true}));
+  m.position.set(def.pos[0],1.5,def.pos[1]); houseGroup.add(m);
+  return {def,ro:true,hit:[m],apply(){
+    const active=getState(def.entity).state==="on";
+    m.material.emissive.setHex(active?0x3DD6C4:0x000000); m.material.emissiveIntensity=active?1.2:0;
+  }};
+}
+
+/* ---------- textures / labels ------------------------------------------- */
+function makeHalo(){const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');
+  const g=x.createRadialGradient(64,64,0,64,64,64);
+  g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.3,'rgba(255,255,255,.5)');g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g;x.fillRect(0,0,128,128);const t=new THREE.Texture(c);t.needsUpdate=true;return t;}
+function makeLabel(text,color,scale){const c=document.createElement('canvas');c.width=256;c.height=64;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthWrite:false,depthTest:false}));
+  sp.userData={canvas:c,color};setLabel(sp,text);sp.scale.set(scale*4,scale,1);sp.renderOrder=999;return sp;}
+function setLabel(sprite,text){const c=sprite.userData.canvas,x=c.getContext('2d');
+  x.clearRect(0,0,c.width,c.height);x.font='600 34px "IBM Plex Mono", monospace';
+  x.textAlign='center';x.textBaseline='middle';
+  x.fillStyle='#'+('000000'+sprite.userData.color.toString(16)).slice(-6);x.fillText(text,128,34);
+  const t=new THREE.Texture(c);t.needsUpdate=true;if(sprite.material.map)sprite.material.map.dispose();
+  sprite.material.map=t;sprite.material.needsUpdate=true;}
+function polyCentroid(p){let x=0,z=0;p.forEach(q=>{x+=q[0];z+=q[1];});return [x/p.length,z/p.length];}
+
+/* ---------- UI ----------------------------------------------------------- */
+const rowsEl=document.getElementById('rows');
+function stateLabel(d){
+  const st=getState(d.def.entity);
+  if(st.state==="unavailable") return ["—","dim"];
+  switch(d.def.type){
+    case "light": return st.state==="on"?["LIGADO","on"]:["DESLIGADO","dim"];
+    case "climate":{const t=st.attributes.current_temperature;return t==null?["—","dim"]:[Number(t).toFixed(1)+"°C","cool"];}
+    case "cover":{let p=st.attributes.current_position; if(p==null)p=st.state==="open"?100:0; return [p+"%",p>5?"cool":"dim"];}
+    default:{const dc=st.attributes.device_class;
+      if(dc==="door")return [st.state==="on"?"ABERTA":"FECHADA",st.state==="on"?"on":"dim"];
+      if(dc==="motion")return [st.state==="on"?"MOVIMENTO":"LIVRE",st.state==="on"?"cool":"dim"];
+      return [String(st.state).toUpperCase(),"dim"];}
+  }
+}
+function swatchClass(d){const st=getState(d.def.entity);
+  if(st.state==="unavailable")return"";
+  if(d.def.type==="light")return st.state==="on"?"on":"";
+  if(d.def.type==="climate")return"cool";
+  if(d.def.type==="cover"){let p=st.attributes.current_position;if(p==null)p=st.state==="open"?100:0;return p>5?"cool":"";}
+  return st.state==="on"?(st.attributes.device_class==="motion"?"cool":"on"):"";}
+function buildRowsUI(){
+  rowsEl.innerHTML="";
+  devices.forEach(d=>{
+    const row=document.createElement('div'); row.className='row'+(d.ro?' ro':''); row.dataset.id=d.def.id;
+    row.innerHTML=`<span class="swatch"></span><div class="meta"><div class="name"></div><div class="sub"></div></div><div class="val"></div>`;
+    row.querySelector('.name').textContent=d.def.name;
+    row.querySelector('.sub').textContent=d.def.entity;
+    if(!d.ro) row.addEventListener('click',()=>activate(d));
+    rowsEl.appendChild(row);
+  });
+}
+function refreshUI(){
+  devices.forEach(d=>{const row=rowsEl.querySelector(`.row[data-id="${d.def.id}"]`); if(!row)return;
+    const [val,tone]=stateLabel(d); row.querySelector('.swatch').className='swatch '+swatchClass(d);
+    const v=row.querySelector('.val'); v.textContent=val; v.className='val'+(tone==='dim'?' dim':'');});
+}
+function applyAll(){devices.forEach(d=>d.apply()); refreshUI();}
+
+/* ---------- HA bridge ---------------------------------------------------- */
+async function api(path,opts){const r=await fetch(path,opts);if(!r.ok)throw new Error(r.status);return r.json();}
+async function loadHome(){
+  try{const h=await api('./api/home'); if(h&&!h.use_builtin&&Array.isArray(h.rooms)) HOME=h;}catch(e){}
+}
+async function refreshStates(first){
+  if(DEMO){applyAll();return;}
+  try{
+    const arr=await api('./api/states');
+    STATES={}; arr.forEach(s=>STATES[s.entity_id]={state:s.state,attributes:s.attributes||{}});
+    const known=HOME.devices.filter(d=>STATES[d.entity]&&STATES[d.entity].state!=="unavailable");
+    if(first&&known.length===0){ enableDemo(true,"Sem entidades mapeadas — modo demo. Edita casa3d.json para ligar à tua casa."); return; }
+    applyAll();
+  }catch(e){
+    if(first) enableDemo(true,"Aberto fora do Home Assistant — modo demo.");
+  }
+}
+function activate(d){
+  if(DEMO){ simToggle(d); applyAll(); pulse(d); return; }
+  const domain=d.def.entity.split('.')[0];
+  if(domain==="climate"||domain==="binary_sensor"||domain==="sensor"){ pulse(d); return; }
+  api('./api/service',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({domain,service:'toggle',entity_id:d.def.entity})}).catch(()=>{});
+  pulse(d);
+  setTimeout(()=>refreshStates(false),450);
+  setTimeout(()=>refreshStates(false),1300);
+}
+function simToggle(d){
+  const s=SIM[d.def.entity]; if(!s)return; const dom=d.def.entity.split('.')[0];
+  if(dom==="light")s.state=s.state==="on"?"off":"on";
+  else if(dom==="cover"){const open=(s.attributes.current_position||0)>5;s.attributes.current_position=open?0:100;s.state=open?"closed":"open";}
+  else if(dom==="climate"){let t=s.attributes.current_temperature||21;t=t>=24?18:t+1;s.attributes.current_temperature=t;}
+  else if(dom==="binary_sensor")s.state=s.state==="on"?"off":"on";
+}
+function enableDemo(on,msg){
+  DEMO=on; document.getElementById('btnDemo').classList.toggle('active',on);
+  const b=document.getElementById('banner'); if(on&&msg){b.textContent=msg;b.style.display='block';} else b.style.display='none';
+  applyAll();
+}
+
+/* ---------- picking ------------------------------------------------------ */
+const ray=new THREE.Raycaster(),ndc=new THREE.Vector2(); let down=null;
+renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,t:performance.now()};});
+renderer.domElement.addEventListener('pointerup',e=>{
+  if(!down)return; const moved=Math.hypot(e.clientX-down.x,e.clientY-down.y); const dt=performance.now()-down.t; down=null;
+  if(moved>6||dt>500)return;
+  ndc.x=(e.clientX/innerWidth)*2-1; ndc.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(ndc,camera);
+  const targets=[]; devices.forEach(d=>{if(d.ro)return; d.hit.forEach(h=>{h.userData._d=d;targets.push(h);});});
+  const hit=ray.intersectObjects(targets,false)[0]; if(hit)activate(hit.object.userData._d);
+});
+
+/* ---------- pulses ------------------------------------------------------- */
+let pulses=[];
+function pulse(d){const node=d.hit[0];
+  const ring=new THREE.Mesh(new THREE.RingGeometry(0.2,0.28,24),
+    new THREE.MeshBasicMaterial({color:0xEAEEF3,transparent:true,opacity:0.8,side:THREE.DoubleSide,depthWrite:false}));
+  ring.rotation.x=-Math.PI/2; ring.position.copy(node.getWorldPosition(new THREE.Vector3())); ring.position.y=0.05;
+  scene.add(ring); pulses.push({ring,t:0});}
+
+/* ---------- dock --------------------------------------------------------- */
+let camAnim=null;
+document.getElementById('btnReset').onclick=()=>{camAnim={from:camera.position.clone(),to:CAM_HOME.clone(),t:0};};
+document.getElementById('btnSpin').onclick=function(){controls.autoRotate=!controls.autoRotate;this.classList.toggle('active',controls.autoRotate);};
+document.getElementById('btnDemo').onclick=function(){enableDemo(!DEMO, DEMO?null:"Modo demo ativado.");};
+document.getElementById('btnNight').onclick=function(){
+  const night=scene.background.getHex()!==0x080A0E; this.classList.toggle('active',night);
+  hemi.intensity=night?0.32:0.9; dir.intensity=night?0.18:0.55;
+  scene.background.setHex(night?0x080A0E:0x0E1116); scene.fog.color.setHex(night?0x080A0E:0x0E1116); applyAll();};
+controls.addEventListener('start',()=>{controls.autoRotate=false;document.getElementById('btnSpin').classList.remove('active');});
+
+/* ---------- clock -------------------------------------------------------- */
+const clockEl=document.getElementById('clock');
+function tickClock(){const d=new Date();clockEl.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+tickClock(); setInterval(tickClock,10000);
+
+/* ---------- boot --------------------------------------------------------- */
+houseGroup.position.y=-2.2; houseGroup.scale.set(1,0.001,1); let intro=0;
+const easeOut=t=>1-Math.pow(1-t,3);
+function loop(){requestAnimationFrame(loop);
+  if(intro<1){intro=Math.min(1,intro+0.012);const e=easeOut(intro);houseGroup.position.y=-2.2*(1-e);houseGroup.scale.y=0.001+e*0.999;}
+  if(camAnim){camAnim.t=Math.min(1,camAnim.t+0.04);const e=easeOut(camAnim.t);camera.position.lerpVectors(camAnim.from,camAnim.to,e);if(camAnim.t>=1)camAnim=null;}
+  pulses=pulses.filter(p=>{p.t+=0.03;const s=1+p.t*5;p.ring.scale.set(s,s,s);p.ring.material.opacity=0.8*(1-p.t);
+    if(p.t>=1){scene.remove(p.ring);p.ring.geometry.dispose();p.ring.material.dispose();return false;}return true;});
+  controls.update(); renderer.render(scene,camera);
+}
+loop();
+
+(async function start(){
+  await loadHome();
+  buildRooms(); buildWalls(); buildDevices(); buildRowsUI();
+  await refreshStates(true);
+  setInterval(()=>{ if(!DEMO) refreshStates(false); }, REFRESH_MS);
+})();
+
+addEventListener('load',()=>{const l=document.getElementById('loader');setTimeout(()=>{l.style.opacity=0;setTimeout(()=>l.remove(),650);},500);});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+</script>
+</body>
+</html>
