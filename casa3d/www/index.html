@@ -55,6 +55,10 @@
   .danger:hover{border-color:var(--ember);}
   .hint{font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--mist);
     line-height:1.5;margin:2px 0 10px;}
+  .oprow{display:flex;gap:5px;align-items:center;margin-bottom:6px;}
+  .oprow select{flex:1;min-width:0;background:#11151b;color:var(--bone);border:1px solid var(--line);border-radius:7px;padding:5px 6px;font-size:11.5px;font-family:inherit;}
+  .oprow input{width:54px;background:#11151b;color:var(--bone);border:1px solid var(--line);border-radius:7px;padding:5px 5px;font-size:11.5px;font-family:inherit;}
+  .oprow .o_del{flex:0 0 auto;width:28px;padding:5px 0;background:rgba(255,92,56,.12);color:#ffb9a6;border:1px solid rgba(255,92,56,.4);border-radius:7px;cursor:pointer;}
   body.editing canvas{cursor:crosshair;}
 
   /* ---- in-panel device dashboard (sheet) ---- */
@@ -157,6 +161,8 @@
 
 <div class="editbar" id="editbar">
   <button class="btn" id="btnAdd">+ Objeto</button>
+  <button class="btn" id="btnAddFurni">+ Móvel</button>
+  <button class="btn" id="btnAddWall">+ Parede</button>
   <button class="btn" id="btnWalls">Paredes</button>
   <button class="btn" id="btnSave">Guardar</button>
   <button class="btn danger" id="btnExit">Sair</button>
@@ -176,8 +182,8 @@
 
 <div id="loader"><div class="bar"><i></i></div><span>a projetar a casa</span></div>
 
-<script src="./three.min.js?v=011"></script>
-<script src="./OrbitControls.js?v=011"></script>
+<script src="./three.min.js?v=050"></script>
+<script src="./OrbitControls.js?v=050"></script>
 <script>
 /* Guard: if the bundled 3D libs didn't load, say so clearly instead of a silent console error. */
 (function(){
@@ -304,6 +310,8 @@ const matCover=new THREE.MeshStandardMaterial({color:0x4a5563,roughness:0.85,fla
 const haloTex=makeHalo();
 const roomMeshes={};
 let devices=[];
+let furniture=[];
+let wallGroups=[];
 
 /* ---------- builders ----------------------------------------------------- */
 const SHARED=new Set([matWall,matTrim,matGlass,matCover]);   // never dispose these materials
@@ -320,17 +328,23 @@ function clearHouse(){
     const o=houseGroup.children[i]; houseGroup.remove(o); disposeNode(o);
   }
   for(const k in roomMeshes) delete roomMeshes[k];
-  devices=[];
+  devices=[]; furniture=[]; wallGroups=[];
 }
 function buildHouse(){
   applyWallAppearance(HOME.meta&&HOME.meta.wall);
-  buildRooms(); buildWalls(); buildDevices(); buildRowsUI();
+  buildRooms(); buildWalls(); buildFurniture(); buildDevices(); buildRowsUI();
 }
 function makeByType(def){
-  if(def.type==="light")   return makeLight(def);
-  if(def.type==="climate") return makeClimate(def);
-  if(def.type==="cover")   return makeCover(def);
-  return makeSensor(def);
+  let rec;
+  if(def.type==="light")        rec=makeLight(def);
+  else if(def.type==="climate") rec=makeClimate(def);
+  else if(def.type==="cover")   rec=makeCover(def);
+  else                          rec=makeSensor(def);
+  if(rec&&rec.root){
+    if(def.rot) rec.root.rotation.y=def.rot*Math.PI/180;
+    const s=def.size; if(Array.isArray(s)) rec.root.scale.set(s[0]||1,s[1]||1,s[2]||1);
+  }
+  return rec;
 }
 function buildRooms(){
   HOME.rooms.forEach((r,idx)=>{
@@ -399,37 +413,58 @@ function applyWallAppearance(w){
   matWall.needsUpdate=true;
 }
 function buildWalls(){
-  HOME.walls.forEach(w=>{
-    const a=new THREE.Vector2(w.a[0],w.a[1]), b=new THREE.Vector2(w.b[0],w.b[1]), L=a.distanceTo(b);
-    const ops=(w.o||[]).map(o=>{const c=o.at*L; const sill=o.k==="win"?WIN_SILL:0; const top=o.k==="win"?WIN_TOP:DOOR_TOP;
-      return {s0:c-o.w/2,s1:c+o.w/2,sill,top,kind:o.k};}).sort((p,q)=>p.s0-q.s0);
-    let cur=0;
-    ops.forEach(op=>{
-      if(op.s0>cur) addWall(a,b,cur,op.s0,0,WALL_H);
-      if(op.sill>0) addWall(a,b,op.s0,op.s1,0,op.sill);
-      if(op.top<WALL_H) addWall(a,b,op.s0,op.s1,op.top,WALL_H,matTrim);
-      if(op.kind==="win") addGlass(a,b,op.s0,op.s1,op.sill,op.top);
-      cur=op.s1;
-    });
-    if(cur<L) addWall(a,b,cur,L,0,WALL_H);
-  });
+  wallGroups=[];
+  HOME.walls.forEach((w,wi)=>{ wallGroups[wi]=buildWall(w,wi); });
 }
-function addWall(a,b,s0,s1,y0,y1,mat){
+function buildWall(w,wi){
+  const g=new THREE.Group(); g.userData._wall={w,wi};
+  const a=new THREE.Vector2(w.a[0],w.a[1]), b=new THREE.Vector2(w.b[0],w.b[1]), L=a.distanceTo(b);
+  const ops=(w.o||[]).map(o=>{const c=o.at*L; const sill=o.k==="win"?WIN_SILL:0; const top=o.k==="win"?WIN_TOP:DOOR_TOP;
+    return {s0:c-o.w/2,s1:c+o.w/2,sill,top,kind:o.k};}).sort((p,q)=>p.s0-q.s0);
+  let cur=0;
+  ops.forEach(op=>{
+    if(op.s0>cur) addWall(g,a,b,cur,op.s0,0,WALL_H);
+    if(op.sill>0) addWall(g,a,b,op.s0,op.s1,0,op.sill);
+    if(op.top<WALL_H) addWall(g,a,b,op.s0,op.s1,op.top,WALL_H,matTrim);
+    if(op.kind==="win") addGlass(g,a,b,op.s0,op.s1,op.sill,op.top);
+    cur=Math.max(cur,op.s1);
+  });
+  if(cur<L) addWall(g,a,b,cur,L,0,WALL_H);
+  houseGroup.add(g);
+  return g;
+}
+function rebuildWall(wi){
+  const old=wallGroups[wi]; if(old){houseGroup.remove(old);disposeNode(old);}
+  wallGroups[wi]=buildWall(HOME.walls[wi],wi);
+}
+function addWall(g,a,b,s0,s1,y0,y1,mat){
   const len=s1-s0; if(len<=0.001) return;
   const d=b.clone().sub(a).normalize(); const mid=s0+len/2;
   const px=a.x+d.x*mid, pz=a.y+d.y*mid;
   const geo=new THREE.BoxGeometry(len,y1-y0,WALL_T);
   const m=new THREE.Mesh(geo,mat||matWall);
-  m.position.set(px,(y0+y1)/2,pz); m.rotation.y=-Math.atan2(d.y,d.x); houseGroup.add(m);
-  const eg=new THREE.LineSegments(new THREE.EdgesGeometry(geo),
-    new THREE.LineBasicMaterial({color:0x434f5c,transparent:true,opacity:0.45}));
-  eg.position.copy(m.position); eg.rotation.copy(m.rotation); houseGroup.add(eg);
+  m.position.set(px,(y0+y1)/2,pz); m.rotation.y=-Math.atan2(d.y,d.x); g.add(m);
+  const eg=new THREE.LineSegments(new THREE.EdgesGeometry(geo),EDGE);
+  eg.position.copy(m.position); eg.rotation.copy(m.rotation); g.add(eg);
 }
-function addGlass(a,b,s0,s1,sill,top){
+function addBar(g,a,b,s0,s1,y,th){
+  const len=s1-s0; if(len<=0) return; const d=b.clone().sub(a).normalize(); const mid=s0+len/2;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(len,th,WALL_T*1.4),matTrim);
+  m.position.set(a.x+d.x*mid,y,a.y+d.y*mid); m.rotation.y=-Math.atan2(d.y,d.x); g.add(m);
+}
+function addPost(g,a,b,s,y0,y1,wd){
+  const d=b.clone().sub(a).normalize();
+  const m=new THREE.Mesh(new THREE.BoxGeometry(wd,y1-y0,WALL_T*1.4),matTrim);
+  m.position.set(a.x+d.x*s,(y0+y1)/2,a.y+d.y*s); m.rotation.y=-Math.atan2(d.y,d.x); g.add(m);
+}
+function addGlass(g,a,b,s0,s1,sill,top){
   const len=s1-s0; const d=b.clone().sub(a).normalize(); const mid=s0+len/2;
-  const m=new THREE.Mesh(new THREE.PlaneGeometry(len,top-sill),matGlass);
-  m.position.set(a.x+d.x*mid,(sill+top)/2,a.y+d.y*mid);
-  m.rotation.y=-Math.atan2(d.y,d.x)+Math.PI/2; houseGroup.add(m);
+  const glass=new THREE.Mesh(new THREE.PlaneGeometry(len,top-sill),matGlass);
+  glass.position.set(a.x+d.x*mid,(sill+top)/2,a.y+d.y*mid);
+  glass.rotation.y=-Math.atan2(d.y,d.x)+Math.PI/2; g.add(glass);
+  /* window joinery for realism: rails top/bottom, stiles + a centre mullion */
+  addBar(g,a,b,s0,s1,top,0.06); addBar(g,a,b,s0,s1,sill,0.06);
+  addPost(g,a,b,s0,sill,top,0.05); addPost(g,a,b,s1,sill,top,0.05); addPost(g,a,b,(s0+s1)/2,sill,top,0.04);
 }
 
 function buildDevices(){
@@ -438,29 +473,38 @@ function buildDevices(){
 }
 /* Each device lives in a Group at (x,0,z); child meshes use local coords, so the
    editor can move/delete a device by just touching its root. */
-function makeLight(def){
+function makeLight(def){          // pendant lamp: cord + shade + glowing bulb
   const root=new THREE.Group(); root.position.set(def.pos[0],0,def.pos[1]);
-  const bulb=new THREE.Mesh(new THREE.IcosahedronGeometry(0.22,0),
-    new THREE.MeshStandardMaterial({color:0x2a3340,emissive:0x000000,roughness:0.4,flatShading:true}));
-  bulb.position.y=2.25;
-  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:haloTex,color:0xFF5C38,transparent:true,opacity:0,depthWrite:false}));
-  halo.scale.set(2.6,2.6,1); halo.position.y=2.25;
-  const pl=new THREE.PointLight(0xFF7A4D,0,5,2); pl.position.y=2.25;
-  root.add(bulb,halo,pl); houseGroup.add(root);
-  return {def,root,hit:[bulb],apply(){
+  const y=2.35;
+  P(root,CY(0.01,0.45,6),MAT.dark,0,y+0.22,0);
+  const shade=new THREE.Mesh(new THREE.ConeGeometry(0.2,0.22,22,1,true),
+    new THREE.MeshStandardMaterial({color:0x39434f,roughness:0.5,metalness:0.3,side:THREE.DoubleSide})); shade.position.y=y; root.add(shade);
+  const bulb=new THREE.Mesh(new THREE.SphereGeometry(0.09,16,12),
+    new THREE.MeshStandardMaterial({color:0x2a3340,emissive:0x000000,roughness:0.25})); bulb.position.y=y-0.07; root.add(bulb);
+  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:haloTex,color:0xFFB27A,transparent:true,opacity:0,depthWrite:false}));
+  halo.scale.set(2.4,2.4,1); halo.position.y=y-0.1; root.add(halo);
+  const pl=new THREE.PointLight(0xFFB27A,0,6,2); pl.position.y=y-0.2; root.add(pl);
+  houseGroup.add(root);
+  return {def,root,hit:[shade,bulb],apply(){
     const on=getState(def.entity).state==="on";
-    bulb.material.emissive.setHex(on?0xFF5C38:0x000000); bulb.material.emissiveIntensity=on?1.4:0;
-    halo.material.opacity=on?0.55:0;
-    const night=scene.background.getHex()<0x0c0f13; pl.intensity=on?(night?2.6:1.5):0;
+    bulb.material.emissive.setHex(on?0xFFC489:0x000000); bulb.material.emissiveIntensity=on?1.8:0;
+    halo.material.opacity=on?0.5:0;
+    const night=scene.background.getHex()<0x0c0f13; pl.intensity=on?(night?2.8:1.5):0;
   }};
 }
-function makeClimate(def){
+function makeClimate(def){        // wall-mounted A/C split unit
   const root=new THREE.Group(); root.position.set(def.pos[0],0,def.pos[1]);
-  const body=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.32,0.12),matTrim.clone()); body.position.y=1.45;
-  const lbl=makeLabel("--",0x3DD6C4,0.26); lbl.position.y=1.78;
-  root.add(body,lbl); houseGroup.add(root);
+  const y=2.05;
+  const body=new THREE.Mesh(B(0.92,0.3,0.22),MAT.white); body.position.y=y; root.add(body);
+  P(root,B(0.84,0.05,0.03),MAT.steel,0,y-0.1,0.115);      // louver vent
+  const led=new THREE.Mesh(B(0.05,0.018,0.012),new THREE.MeshStandardMaterial({color:0x10151b,emissive:0x000000}));
+  led.position.set(0.32,y,0.115); root.add(led);
+  const lbl=makeLabel("--",0x3DD6C4,0.24); lbl.position.set(0,y+0.32,0.1); root.add(lbl);
+  houseGroup.add(root);
   return {def,root,hit:[body],apply(){
     const st=getState(def.entity); const t=st.attributes&&st.attributes.current_temperature;
+    const active=st.state&&st.state!=="off"&&st.state!=="unavailable";
+    led.material.emissive.setHex(active?0x3DD6C4:0x000000); led.material.emissiveIntensity=active?1.6:0;
     if(t==null){ setLabel(lbl,"--"); return; }
     setLabel(lbl,Number(t).toFixed(1)+"°");
     const k=Math.max(0,Math.min(1,(t-18)/6));
@@ -468,28 +512,160 @@ function makeClimate(def){
     const rm=roomMeshes[def.room]; if(rm){rm.tintMat.color.copy(col); rm.tintMat.opacity=0.14;}
   }};
 }
-function makeCover(def){
+function makeCover(def){          // venetian blinds: stacked slats that drop to close
   const root=new THREE.Group(); root.position.set(def.pos[0],0,def.pos[1]);
-  const slats=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.1,0.05),matCover.clone()); slats.position.y=WIN_TOP-0.55;
-  root.add(slats); houseGroup.add(root);
-  return {def,root,hit:[slats],apply(){
-    const st=getState(def.entity);
-    let pos=(st.attributes&&st.attributes.current_position);
-    if(pos==null) pos = st.state==="open"?100 : st.state==="closed"?0 : 50;
-    const drop=1-pos/100; const H=1.1;
-    slats.scale.y=Math.max(0.04,drop);
-    slats.position.y=WIN_TOP-(H*slats.scale.y)/2;
+  const W=1.3, headY=WIN_TOP, fullDrop=WIN_TOP-WIN_SILL;
+  P(root,B(W+0.08,0.07,0.07),MAT.steel,0,headY+0.05,0);   // headrail
+  const slatMat=fmat(def.tone!=null?def.tone:0xaeb6bf,0.55,0.1);
+  const N=14, slats=[];
+  for(let i=0;i<N;i++){ const s=new THREE.Mesh(B(W,0.045,0.015),slatMat); root.add(s); slats.push(s); }
+  function layout(closed){
+    const span=fullDrop*closed, gap=N>1?span/(N-1):0;
+    slats.forEach((s,i)=>{ s.position.set(0,headY-0.04-i*gap,0); s.visible=(i*gap)<=span+1e-3; });
+  }
+  houseGroup.add(root);
+  return {def,root,hit:slats,apply(){
+    const st=getState(def.entity); let pos=(st.attributes&&st.attributes.current_position);
+    if(pos==null) pos=st.state==="open"?100:st.state==="closed"?0:50;
+    layout(1-pos/100);
   }};
 }
-function makeSensor(def){
+function makeSensor(def){         // small ceiling dome with a status LED
   const root=new THREE.Group(); root.position.set(def.pos[0],0,def.pos[1]);
-  const m=new THREE.Mesh(new THREE.OctahedronGeometry(0.16,0),
-    new THREE.MeshStandardMaterial({color:0x39434f,emissive:0x000000,roughness:0.5,flatShading:true})); m.position.y=1.5;
-  root.add(m); houseGroup.add(root);
-  return {def,root,hit:[m],apply(){
+  const y=2.3;
+  P(root,CY(0.075,0.025,18),MAT.white,0,y,0);
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(0.07,18,12,0,Math.PI*2,0,Math.PI/2),
+    new THREE.MeshStandardMaterial({color:0xe8edf2,emissive:0x000000,roughness:0.35}));
+  dome.position.y=y-0.012; dome.rotation.x=Math.PI; root.add(dome);
+  const led=new THREE.Mesh(new THREE.SphereGeometry(0.014,8,8),new THREE.MeshStandardMaterial({color:0x101418,emissive:0x000000}));
+  led.position.set(0,y-0.05,0); root.add(led);
+  houseGroup.add(root);
+  return {def,root,hit:[dome],apply(){
     const active=getState(def.entity).state==="on";
-    m.material.emissive.setHex(active?0x3DD6C4:0x000000); m.material.emissiveIntensity=active?1.2:0;
+    led.material.emissive.setHex(active?0x3DD6C4:0x000000); led.material.emissiveIntensity=active?2.2:0;
   }};
+}
+
+/* ---------- furniture / props (realistic low-poly) ---------------------- */
+const EDGE=new THREE.LineBasicMaterial({color:0x434f5c,transparent:true,opacity:0.4});
+const MAT={
+  wood:   new THREE.MeshStandardMaterial({color:0x6f5b43,roughness:0.72,metalness:0.04}),
+  woodL:  new THREE.MeshStandardMaterial({color:0x8a7458,roughness:0.72}),
+  metal:  new THREE.MeshStandardMaterial({color:0xb9c1c9,roughness:0.32,metalness:0.85}),
+  steel:  new THREE.MeshStandardMaterial({color:0x9aa3ad,roughness:0.4,metalness:0.7}),
+  ceramic:new THREE.MeshStandardMaterial({color:0xeef2f5,roughness:0.32}),
+  white:  new THREE.MeshStandardMaterial({color:0xdfe6ec,roughness:0.5}),
+  dark:   new THREE.MeshStandardMaterial({color:0x232a33,roughness:0.6}),
+};
+SHARED.add(EDGE); Object.values(MAT).forEach(m=>SHARED.add(m));
+const FURNI=[["sofa","Sofá"],["bed","Cama"],["bed_double","Cama casal"],["table","Mesa"],
+  ["chair","Cadeira"],["chairs","Cadeiras"],["cabinet","Aparador"],["painting","Quadro"],
+  ["shower","Duche"],["sink","Lavatório"],["kitchen","Cozinha"],["bench","Banco"]];
+function tint(hex,amt){const c=new THREE.Color(hex);c.offsetHSL(0,0,amt);return c.getHex();}
+function fmat(color,rough,metal){return new THREE.MeshStandardMaterial({color,roughness:rough==null?0.9:rough,metalness:metal||0});}
+function B(w,h,d){return new THREE.BoxGeometry(w,h,d);}
+function CY(r,h,seg){return new THREE.CylinderGeometry(r,r,h,seg||14);}
+function P(g,geo,mat,x,y,z,ry){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);if(ry)m.rotation.y=ry;g.add(m);return m;}
+function leg(g,mat,x,z,h,r){P(g,CY(r||0.028,h,10),mat,x,h/2,z);}
+function buildFurniture(){
+  furniture=[];
+  (HOME.furniture||[]).forEach(def=>furniture.push(makeFurniture(def)));
+}
+function makeFurniture(def){
+  const root=new THREE.Group(); root.position.set(def.pos[0],0,def.pos[1]); root.rotation.y=(def.rot||0)*Math.PI/180;
+  const b=def.tone!=null?def.tone:0x44505f;
+  switch(def.kind){
+    case "sofa": fSofa(root,b); break;
+    case "bed": fBed(root,b,0.95); break;
+    case "bed_double": fBed(root,b,1.6); break;
+    case "chair": fChair(root,b,0,0); break;
+    case "chairs": fChair(root,b,-0.32,0); fChair(root,b,0.32,0); break;
+    case "cabinet": fCabinet(root,b); break;
+    case "painting": fPainting(root,b); break;
+    case "shower": fShower(root,b); break;
+    case "sink": fSink(root,b); break;
+    case "kitchen": fKitchen(root,b); break;
+    case "bench": fBench(root,b); break;
+    case "table": default: fTable(root,b); break;
+  }
+  const s=def.size; if(Array.isArray(s)) root.scale.set(s[0]||1,s[1]||1,s[2]||1);
+  houseGroup.add(root);
+  return {def,root,kind:def.kind};
+}
+function fSofa(g,b){
+  P(g,B(1.95,0.26,0.9),fmat(b,1),0,0.36,0);
+  P(g,B(1.95,0.5,0.2),fmat(tint(b,0.05),1),0,0.62,-0.35);                  // back
+  P(g,B(0.22,0.46,0.9),fmat(tint(b,-0.03),1),-0.86,0.45,0);               // arms
+  P(g,B(0.22,0.46,0.9),fmat(tint(b,-0.03),1),0.86,0.45,0);
+  P(g,B(0.82,0.18,0.74),fmat(tint(b,0.08),1),-0.45,0.55,0.05);            // seat cushions
+  P(g,B(0.82,0.18,0.74),fmat(tint(b,0.08),1),0.45,0.55,0.05);
+  P(g,B(0.8,0.32,0.16),fmat(tint(b,0.06),1),-0.45,0.66,-0.27);            // back cushions
+  P(g,B(0.8,0.32,0.16),fmat(tint(b,0.06),1),0.45,0.66,-0.27);
+  [[-0.85,-0.35],[0.85,-0.35],[-0.85,0.35],[0.85,0.35]].forEach(([x,z])=>leg(g,MAT.wood,x,z,0.18,0.035));
+}
+function fBed(g,b,w){
+  const L=2.05;
+  P(g,B(w+0.1,0.3,L+0.1),MAT.wood,0,0.2,0);                              // frame
+  P(g,B(w,0.2,L),fmat(tint(b,0.06),0.95),0,0.45,0.03);                    // mattress
+  P(g,B(w+0.12,0.62,0.1),MAT.wood,0,0.55,-L/2-0.02);                      // headboard
+  P(g,B(w,0.16,0.6),fmat(tint(b,0.1),0.95),0,0.52,L/2-0.35);             // duvet fold
+  const pil=fmat(0xd7dde4,0.9);
+  if(w>1.2){ P(g,B(0.55,0.14,0.36),pil,-0.36,0.58,-L/2+0.42); P(g,B(0.55,0.14,0.36),pil,0.36,0.58,-L/2+0.42); }
+  else P(g,B(0.62,0.14,0.36),pil,0,0.58,-L/2+0.42);
+}
+function fTable(g,b){
+  P(g,B(1.35,0.05,0.85),MAT.wood,0,0.75,0);
+  P(g,B(1.2,0.03,0.7),MAT.woodL,0,0.72,0);
+  [[-0.6,-0.35],[0.6,-0.35],[-0.6,0.35],[0.6,0.35]].forEach(([x,z])=>P(g,B(0.07,0.72,0.07),MAT.wood,x,0.36,z));
+}
+function fChair(g,b,ox,oz){
+  P(g,B(0.46,0.06,0.46),fmat(b,1),ox,0.47,oz);
+  P(g,B(0.46,0.5,0.06),fmat(tint(b,0.04),1),ox,0.72,oz-0.2);
+  [[-0.19,-0.19],[0.19,-0.19],[-0.19,0.19],[0.19,0.19]].forEach(([x,z])=>leg(g,MAT.wood,ox+x,oz+z,0.47,0.024));
+}
+function fCabinet(g,b){
+  P(g,B(0.92,0.74,0.42),fmat(b,0.7),0,0.42,0);
+  P(g,B(0.96,0.05,0.46),MAT.woodL,0,0.81,0);
+  P(g,B(0.8,0.2,0.02),fmat(tint(b,-0.05),0.7),0,0.56,0.215);              // drawers
+  P(g,B(0.8,0.2,0.02),fmat(tint(b,-0.05),0.7),0,0.32,0.215);
+  P(g,CY(0.015,0.1,8),MAT.metal,0,0.56,0.24,Math.PI/2);                   // handles
+  P(g,CY(0.015,0.1,8),MAT.metal,0,0.32,0.24,Math.PI/2);
+  [[-0.4,-0.18],[0.4,-0.18],[-0.4,0.18],[0.4,0.18]].forEach(([x,z])=>leg(g,MAT.metal,x,z,0.08,0.02));
+}
+function fPainting(g,b){
+  P(g,B(0.76,0.56,0.04),MAT.wood,0,1.5,0);
+  P(g,B(0.64,0.44,0.05),fmat(tint(b,0.02),0.85),0,1.5,0.01);
+  P(g,B(0.5,0.18,0.06),fmat(0xFF5C38,0.6),-0.02,1.56,0.02);
+  P(g,B(0.3,0.12,0.06),fmat(0x3DD6C4,0.6),0.12,1.4,0.02);
+}
+function fShower(g,b){
+  P(g,B(1.0,0.1,1.0),MAT.white,0,0.05,0);
+  P(g,B(1.0,2.0,0.03),matGlass,0,1.05,0.5);
+  P(g,B(0.03,2.0,1.0),matGlass,0.5,1.05,0);
+  P(g,CY(0.018,0.5,10),MAT.steel,-0.4,1.7,-0.4);                          // riser
+  P(g,CY(0.09,0.04,16),MAT.steel,-0.4,1.95,-0.4);                         // head
+}
+function fSink(g,b){
+  P(g,B(0.72,0.85,0.5),fmat(b,0.6),0,0.425,0);
+  P(g,B(0.76,0.06,0.54),MAT.white,0,0.88,0);
+  P(g,CY(0.18,0.12,20),MAT.ceramic,0,0.9,0);                             // basin outer
+  P(g,CY(0.14,0.1,20),MAT.dark,0,0.93,0);                                // basin inner
+  P(g,CY(0.015,0.18,10),MAT.metal,0,1.0,-0.16);                          // faucet
+  P(g,B(0.02,0.02,0.12),MAT.metal,0,1.08,-0.1);
+}
+function fKitchen(g,b){
+  P(g,B(2.0,0.9,0.6),fmat(b,0.6),-0.2,0.45,0);                           // base cabinets
+  P(g,B(2.08,0.06,0.64),MAT.dark,-0.2,0.93,0);                           // stone worktop
+  P(g,CY(0.16,0.02,20),MAT.steel,-0.7,0.96,0.05); P(g,CY(0.16,0.02,20),MAT.steel,-0.3,0.96,-0.12); // hob rings
+  P(g,B(2.0,0.6,0.34),fmat(tint(b,0.04),0.6),-0.2,1.75,-0.13);           // upper cabinets
+  P(g,B(0.74,1.85,0.66),MAT.white,1.2,0.925,0);                          // fridge
+  P(g,B(0.74,0.02,0.66),MAT.steel,1.2,0.95,0);                           // fridge seam
+  P(g,B(0.03,0.5,0.04),MAT.metal,0.84,1.25,0.34);                        // fridge handle
+}
+function fBench(g,b){
+  P(g,B(1.4,0.06,0.42),MAT.wood,0,0.46,0);
+  P(g,B(1.3,0.03,0.34),MAT.woodL,0,0.49,0);
+  [[-0.6,0],[0.6,0]].forEach(([x,z])=>P(g,B(0.06,0.46,0.4),MAT.wood,x,0.23,z));
 }
 
 /* ---------- textures / labels ------------------------------------------- */
@@ -652,7 +828,7 @@ renderer.domElement.addEventListener('pointerup',e=>{
   if(editMode||moved>6||dt>500)return;
   ndc.x=(e.clientX/innerWidth)*2-1; ndc.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(ndc,camera);
   const targets=[]; devices.forEach(d=>{if(!clickable(d))return; d.hit.forEach(h=>{h.userData._d=d;targets.push(h);});});
-  const hit=ray.intersectObjects(targets,false)[0]; if(hit)activate(hit.object.userData._d);
+  const hit=ray.intersectObjects(targets,true)[0]; if(hit){let o=hit.object;while(o&&!o.userData._d)o=o.parent;if(o)activate(o.userData._d);}
 });
 
 /* ---------- pulses ------------------------------------------------------- */
@@ -675,7 +851,7 @@ document.getElementById('btnNight').onclick=function(){
 controls.addEventListener('start',()=>{if(!editMode){controls.autoRotate=false;document.getElementById('btnSpin').classList.remove('active');}});
 
 /* ======================= EDITOR ========================================== */
-let editMode=false, selected=null, dragDev=null, dirty=false, selBox=null;
+let editMode=false, selected=null, dragRec=null, dirty=false, selBox=null;
 const groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
 const editbar=document.getElementById('editbar');
 const insp=document.getElementById('insp'), inspBody=document.getElementById('inspBody'), inspTitle=document.getElementById('inspTitle');
@@ -708,33 +884,80 @@ function pointerGround(e){
 renderer.domElement.addEventListener('pointerdown',e=>{
   if(!editMode) return;
   ndc.x=(e.clientX/innerWidth)*2-1; ndc.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(ndc,camera);
-  const devRoots=devices.map(d=>{d.root.userData._d=d;return d.root;});
-  const dh=ray.intersectObjects(devRoots,true)[0];
-  if(dh){let o=dh.object;while(o&&!o.userData._d)o=o.parent;
-    if(o){setSel({kind:'device',d:o.userData._d,obj:o});dragDev=o.userData._d;controls.enabled=false;return;}}
-  const floors=Object.keys(roomMeshes).map(id=>{roomMeshes[id].floor.userData._rid=id;return roomMeshes[id].floor;});
-  const fh=ray.intersectObjects(floors,false)[0];
-  if(fh){const r=(HOME.rooms||[]).find(x=>x.id===fh.object.userData._rid);
-    if(r){setSel({kind:'room',r,obj:roomMeshes[r.id].floor});return;}}
+  const roots=[];
+  devices.forEach(d=>{d.root.userData._dev=d;d.root.userData._fur=null;roots.push(d.root);});
+  furniture.forEach(f=>{f.root.userData._fur=f;f.root.userData._dev=null;roots.push(f.root);});
+  const dh=ray.intersectObjects(roots,true)[0];
+  if(dh){ let o=dh.object; while(o&&!o.userData._dev&&!o.userData._fur)o=o.parent;
+    if(o){ if(o.userData._dev){const d=o.userData._dev;setSel({kind:'device',d,obj:o});dragRec=d;}
+           else{const f=o.userData._fur;setSel({kind:'furniture',f,obj:o});dragRec=f;}
+           controls.enabled=false; return; } }
+  const picks=[];
+  Object.keys(roomMeshes).forEach(id=>{roomMeshes[id].floor.userData._rid=id;picks.push(roomMeshes[id].floor);});
+  wallGroups.forEach((wg,wi)=>{ if(wg){wg.userData._wi=wi;picks.push(wg);} });
+  const hit2=ray.intersectObjects(picks,true)[0];
+  if(hit2){ let o=hit2.object;
+    if(o.userData._rid){ const r=(HOME.rooms||[]).find(x=>x.id===o.userData._rid); if(r){setSel({kind:'room',r,obj:roomMeshes[r.id].floor});return;} }
+    let w=o; while(w&&w.userData._wi==null)w=w.parent;
+    if(w&&w.userData._wi!=null){ setSel({kind:'wall',wi:w.userData._wi,obj:w}); return; } }
   setSel(null);
 });
 renderer.domElement.addEventListener('pointermove',e=>{
-  if(!editMode||!dragDev) return;
+  if(!editMode||!dragRec) return;
   const p=pointerGround(e); if(!p) return;
-  dragDev.def.pos=[+p.x.toFixed(2),+p.z.toFixed(2)];
-  dragDev.root.position.set(p.x,0,p.z);
+  dragRec.def.pos=[+p.x.toFixed(2),+p.z.toFixed(2)];
+  dragRec.root.position.set(p.x,0,p.z);
   if(selBox)selBox.update(); dirty=true;
 });
-addEventListener('pointerup',()=>{ if(dragDev){dragDev=null;controls.enabled=true;renderInspector();} });
+addEventListener('pointerup',()=>{ if(dragRec){dragRec=null;controls.enabled=true;renderInspector();} });
 
 /* ---- inspector ---- */
 function renderInspector(){
   if(!editMode) return;
   if(!selected){ inspTitle.textContent='Inspetor';
-    inspBody.innerHTML='<div class="hint">Toca num objeto para o selecionar e arrastá-lo no chão.<br>Toca no chão de uma divisão para a cor/textura.<br>Botão “Paredes” edita as paredes.<br>“+ Objeto” adiciona no centro da vista.</div>'; return; }
-  if(selected.kind==='wall') return renderWallInspector();
+    inspBody.innerHTML='<div class="hint">Toca num objeto, móvel ou parede para o selecionar e arrastá-lo no chão.<br>Toca no chão de uma divisão para cor/textura.<br>“Paredes” = aparência global · “+ Parede” cria uma nova.<br>“+ Objeto” / “+ Móvel” adicionam no centro da vista.</div>'; return; }
+  if(selected.kind==='walls') return renderWallsInspector();
+  if(selected.kind==='wall') return renderWallInspector(selected.wi);
   if(selected.kind==='room') return renderRoomInspector(selected.r);
+  if(selected.kind==='furniture') return renderFurnitureInspector(selected.f);
   return renderDeviceInspector(selected.d);
+}
+/* shared dimension (W·H·D scale) + optional rotation controls */
+function dimFieldsHTML(def,withRot){
+  const s=def.size||[1,1,1];
+  let h=`<div class="fld"><label>Dimensão (L · A · P ×)</label><div class="row2">
+    <input type="number" id="sz0" step="0.05" min="0.1" value="${s[0]||1}">
+    <input type="number" id="sz1" step="0.05" min="0.1" value="${s[1]||1}">
+    <input type="number" id="sz2" step="0.05" min="0.1" value="${s[2]||1}"></div></div>`;
+  if(withRot) h+=`<div class="fld"><label id="rotl">Rotação ${def.rot||0}°</label><input type="range" id="rot" min="0" max="345" step="15" value="${def.rot||0}"></div>`;
+  return h;
+}
+function wireDim(def,root,withRot){
+  [0,1,2].forEach(i=>{const el=inspBody.querySelector('#sz'+i); if(!el)return;
+    el.onchange=e=>{def.size=def.size||[1,1,1];def.size[i]=Math.max(0.1,+e.target.value||1);
+      root.scale.set(def.size[0],def.size[1],def.size[2]); if(selBox)selBox.update(); dirty=true;};});
+  if(withRot){const r=inspBody.querySelector('#rot'); if(r)r.oninput=e=>{def.rot=+e.target.value;
+    root.rotation.y=def.rot*Math.PI/180; const l=inspBody.querySelector('#rotl'); if(l)l.textContent='Rotação '+def.rot+'°'; if(selBox)selBox.update(); dirty=true;};}
+}
+function renderFurnitureInspector(f){
+  inspTitle.textContent='Móvel';
+  const def=f.def;
+  const roomOpts='<option value="">—</option>'+(HOME.rooms||[]).map(r=>`<option value="${esc(r.id)}"${r.id===def.room?' selected':''}>${esc(r.name||r.id)}</option>`).join('');
+  inspBody.innerHTML=`
+    <div class="fld"><label>Tipo de móvel</label><select id="m_kind">${opt(FURNI,def.kind)}</select></div>
+    <div class="fld"><label>Cor</label><input type="color" id="m_col" value="${hexStr(def.tone!=null?def.tone:0x44505f)}"></div>
+    <div class="fld"><label id="m_rotl">Rotação ${def.rot||0}°</label><input type="range" id="m_rot" min="0" max="345" step="15" value="${def.rot||0}"></div>
+    ${dimFieldsHTML(def,false)}
+    <div class="fld"><label>Divisão</label><select id="m_room">${roomOpts}</select></div>
+    <div class="hint">Posição ${def.pos[0]}, ${def.pos[1]} m · arrasta no chão para mover.</div>
+    <button class="btn danger" id="m_del" style="width:100%">Eliminar móvel</button>`;
+  inspBody.querySelector('#m_kind').onchange=e=>{def.kind=e.target.value;rebuildFurniture(f);dirty=true;};
+  inspBody.querySelector('#m_col').onchange=e=>{def.tone=parseInt(e.target.value.slice(1),16);rebuildFurniture(f);dirty=true;};
+  inspBody.querySelector('#m_rot').oninput=e=>{def.rot=+e.target.value;f.root.rotation.y=def.rot*Math.PI/180;
+    inspBody.querySelector('#m_rotl').textContent='Rotação '+def.rot+'°'; if(selBox)selBox.update(); dirty=true;};
+  inspBody.querySelector('#m_room').onchange=e=>{def.room=e.target.value;dirty=true;};
+  inspBody.querySelector('#m_del').onclick=deleteSelected;
+  wireDim(def,f.root,false);
 }
 function renderDeviceInspector(d){
   inspTitle.textContent='Objeto';
@@ -747,6 +970,7 @@ function renderDeviceInspector(d){
     <div class="fld"><label>Divisão</label><select id="f_room">${roomOpts||'<option value="">—</option>'}</select></div>
     <div class="fld"><label>Ação ao clicar</label><select id="f_act">${opt(ACTIONS,def.action?def.action.type:'')}</select></div>
     <div id="actparams"></div>
+    ${dimFieldsHTML(def,true)}
     <div class="hint">Posição ${def.pos[0]}, ${def.pos[1]} m · arrasta no chão para mover.</div>
     <button class="btn danger" id="f_del" style="width:100%">Eliminar objeto</button>`;
   inspBody.querySelector('#f_name').oninput=e=>{def.name=e.target.value;const row=rowsEl.querySelector(`.row[data-id="${def.id}"] .name`);if(row)row.textContent=def.name;dirty=true;};
@@ -758,6 +982,7 @@ function renderDeviceInspector(d){
     renderActParams(def);buildRowsUI();refreshUI();dirty=true;};
   inspBody.querySelector('#f_del').onclick=deleteSelected;
   renderActParams(def);
+  wireDim(def,d.root,true);
 }
 function renderActParams(def){
   const box=inspBody.querySelector('#actparams'); if(!box) return;
@@ -778,22 +1003,75 @@ function renderRoomInspector(r){
   inspBody.innerHTML=`
     <div class="fld"><label>Nome</label><input id="r_name" value="${esc(r.name)}"></div>
     <div class="fld"><label>Cor do chão</label><input type="color" id="r_col" value="${hexStr(r.tone||0x252d39)}"></div>
-    <div class="fld"><label>Textura do chão</label><select id="r_pat">${opt(PATTERNS,r.pattern||'none')}</select></div>`;
+    <div class="fld"><label>Textura do chão</label><select id="r_pat">${opt(PATTERNS,r.pattern||'none')}</select></div>
+    <div class="hint">A forma da divisão (polígono) edita-se nas coordenadas do plano.</div>
+    <button class="btn danger" id="r_del" style="width:100%">Eliminar divisão</button>`;
   const rm=roomMeshes[r.id];
   inspBody.querySelector('#r_name').oninput=e=>{r.name=e.target.value;dirty=true;};
   inspBody.querySelector('#r_col').oninput=e=>{r.tone=parseInt(e.target.value.slice(1),16);applyRoomTexture(rm.floor,r);dirty=true;};
   inspBody.querySelector('#r_pat').onchange=e=>{r.pattern=e.target.value;applyRoomTexture(rm.floor,r);dirty=true;};
+  inspBody.querySelector('#r_del').onclick=()=>{
+    HOME.rooms=(HOME.rooms||[]).filter(x=>x!==r);
+    clearHouse(); buildHouse(); setSel(null);
+    if(DEMO)applyAll(); else refreshStates(false); dirty=true;
+  };
 }
-function renderWallInspector(){
-  inspTitle.textContent='Paredes';
+function renderWallsInspector(){
+  inspTitle.textContent='Paredes (global)';
   const w=(HOME.meta&&HOME.meta.wall)||{};
   inspBody.innerHTML=`
     <div class="fld"><label>Cor das paredes</label><input type="color" id="w_col" value="${hexStr(w.color!=null?w.color:0x2C353F)}"></div>
     <div class="fld"><label>Textura das paredes</label><select id="w_pat">${opt(PATTERNS,w.pattern||'none')}</select></div>
-    <div class="hint">Aplica-se a todas as paredes desta planta.</div>`;
+    <div class="hint">Aplica-se a todas as paredes. Toca numa parede para editar a sua forma e janelas/portas.</div>`;
   const ensure=()=>{HOME.meta=HOME.meta||{};HOME.meta.wall=HOME.meta.wall||{};return HOME.meta.wall;};
   inspBody.querySelector('#w_col').oninput=e=>{ensure().color=parseInt(e.target.value.slice(1),16);applyWallAppearance(HOME.meta.wall);dirty=true;};
   inspBody.querySelector('#w_pat').onchange=e=>{ensure().pattern=e.target.value;applyWallAppearance(HOME.meta.wall);dirty=true;};
+}
+function renderWallInspector(wi){
+  const w=HOME.walls&&HOME.walls[wi]; if(!w){setSel(null);return;}
+  inspTitle.textContent='Parede';
+  const opsHTML=(w.o||[]).map((o,oi)=>`
+    <div class="oprow">
+      <select class="o_k" data-oi="${oi}">${opt([['win','janela'],['door','porta']],o.k)}</select>
+      <input class="o_at" data-oi="${oi}" type="number" step="0.05" min="0" max="1" value="${o.at}" title="posição 0–1">
+      <input class="o_w"  data-oi="${oi}" type="number" step="0.05" min="0.2" value="${o.w}" title="largura (m)">
+      <button class="o_del" data-oi="${oi}" title="remover">✕</button>
+    </div>`).join('');
+  inspBody.innerHTML=`
+    <div class="fld row2"><div style="flex:1"><label>A · x</label><input id="w_ax" type="number" step="0.1" value="${w.a[0]}"></div>
+      <div style="flex:1"><label>A · z</label><input id="w_az" type="number" step="0.1" value="${w.a[1]}"></div></div>
+    <div class="fld row2"><div style="flex:1"><label>B · x</label><input id="w_bx" type="number" step="0.1" value="${w.b[0]}"></div>
+      <div style="flex:1"><label>B · z</label><input id="w_bz" type="number" step="0.1" value="${w.b[1]}"></div></div>
+    <div class="fld"><label>Aberturas — tipo · posição · largura</label><div id="ops">${opsHTML||'<div class="hint">sem aberturas</div>'}</div></div>
+    <button class="btn" id="w_addwin" style="width:100%;margin-bottom:6px">+ Janela</button>
+    <button class="btn" id="w_adddoor" style="width:100%;margin-bottom:8px">+ Porta</button>
+    <button class="btn danger" id="w_del" style="width:100%">Eliminar parede</button>`;
+  const re=()=>{ rebuildWall(wi); setSel({kind:'wall',wi,obj:wallGroups[wi]}); dirty=true; };
+  const v=id=>+inspBody.querySelector(id).value;
+  inspBody.querySelector('#w_ax').onchange=()=>{w.a[0]=v('#w_ax');re();};
+  inspBody.querySelector('#w_az').onchange=()=>{w.a[1]=v('#w_az');re();};
+  inspBody.querySelector('#w_bx').onchange=()=>{w.b[0]=v('#w_bx');re();};
+  inspBody.querySelector('#w_bz').onchange=()=>{w.b[1]=v('#w_bz');re();};
+  inspBody.querySelectorAll('.o_k').forEach(el=>el.onchange=e=>{w.o[+e.target.dataset.oi].k=e.target.value;re();});
+  inspBody.querySelectorAll('.o_at').forEach(el=>el.onchange=e=>{w.o[+e.target.dataset.oi].at=Math.max(0,Math.min(1,+e.target.value));re();});
+  inspBody.querySelectorAll('.o_w').forEach(el=>el.onchange=e=>{w.o[+e.target.dataset.oi].w=Math.max(0.2,+e.target.value);re();});
+  inspBody.querySelectorAll('.o_del').forEach(el=>el.onclick=e=>{w.o.splice(+e.target.dataset.oi,1);re();});
+  inspBody.querySelector('#w_addwin').onclick=()=>{w.o=w.o||[];w.o.push({at:0.5,w:1.2,k:'win'});re();};
+  inspBody.querySelector('#w_adddoor').onclick=()=>{w.o=w.o||[];w.o.push({at:0.5,w:0.9,k:'door'});re();};
+  inspBody.querySelector('#w_del').onclick=()=>{
+    const g=wallGroups[wi]; if(g){houseGroup.remove(g);disposeNode(g);}
+    HOME.walls.splice(wi,1);
+    wallGroups.forEach(x=>{if(x){houseGroup.remove(x);disposeNode(x);}});
+    buildWalls(); setSel(null); dirty=true;
+  };
+}
+function addWallSeg(){
+  HOME.walls=HOME.walls||[];
+  const t=controls.target;
+  const w={a:[+(t.x-1).toFixed(2),+t.z.toFixed(2)],b:[+(t.x+1).toFixed(2),+t.z.toFixed(2)],o:[]};
+  HOME.walls.push(w); const wi=HOME.walls.length-1;
+  wallGroups[wi]=buildWall(w,wi);
+  setSel({kind:'wall',wi,obj:wallGroups[wi]}); dirty=true;
 }
 
 /* ---- structural ops ---- */
@@ -811,13 +1089,29 @@ function addObject(){
   const nd=makeByType(def); devices.push(nd); nd.apply();
   buildRowsUI(); refreshUI(); setSel({kind:'device',d:nd,obj:nd.root}); dirty=true;
 }
+function addFurniture(){
+  HOME.furniture=HOME.furniture||[];
+  const t=controls.target;
+  const def={id:'mob_'+Date.now().toString(36),kind:'table',pos:[+t.x.toFixed(2),+t.z.toFixed(2)],rot:0};
+  HOME.furniture.push(def);
+  const f=makeFurniture(def); furniture.push(f);
+  setSel({kind:'furniture',f,obj:f.root}); dirty=true;
+}
+function rebuildFurniture(f){
+  houseGroup.remove(f.root); disposeNode(f.root);
+  const nf=makeFurniture(f.def); const i=furniture.indexOf(f); if(i>=0)furniture[i]=nf;
+  setSel({kind:'furniture',f:nf,obj:nf.root}); return nf;
+}
 function deleteSelected(){
-  if(!selected||selected.kind!=='device') return;
-  const d=selected.d;
-  houseGroup.remove(d.root); disposeNode(d.root);
-  devices=devices.filter(x=>x!==d);
-  HOME.devices=(HOME.devices||[]).filter(x=>x!==d.def);
-  buildRowsUI(); setSel(null); dirty=true;
+  if(!selected) return;
+  if(selected.kind==='device'){
+    const d=selected.d; houseGroup.remove(d.root); disposeNode(d.root);
+    devices=devices.filter(x=>x!==d); HOME.devices=(HOME.devices||[]).filter(x=>x!==d.def); buildRowsUI();
+  }else if(selected.kind==='furniture'){
+    const f=selected.f; houseGroup.remove(f.root); disposeNode(f.root);
+    furniture=furniture.filter(x=>x!==f); HOME.furniture=(HOME.furniture||[]).filter(x=>x!==f.def);
+  }else return;
+  setSel(null); dirty=true;
 }
 async function savePlan(){
   const file=(plansEl.style.display!=='none'&&plansEl.value)?plansEl.value:'casa3d.json';
@@ -833,7 +1127,9 @@ async function savePlan(){
 document.getElementById('btnEdit').onclick=()=>setEdit(!editMode);
 document.getElementById('btnExit').onclick=()=>{ if(dirty&&!confirm('Sair sem guardar? Alterações por guardar perdem-se.'))return; setEdit(false); };
 document.getElementById('btnAdd').onclick=addObject;
-document.getElementById('btnWalls').onclick=()=>setSel({kind:'wall'});
+document.getElementById('btnAddFurni').onclick=addFurniture;
+document.getElementById('btnAddWall').onclick=addWallSeg;
+document.getElementById('btnWalls').onclick=()=>setSel({kind:'walls'});
 document.getElementById('btnSave').onclick=savePlan;
 
 /* ======================= IN-PANEL DEVICE DASHBOARD (sheet) =============== */

@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.0
+- **Edit every object.** The editor now selects and edits all object classes:
+  - **Walls:** click a wall to edit its endpoints (A/B x·z) and its openings —
+    add/remove **windows & doors**, change each one's position and **width**
+    (so you can resize the window glass). **+ Parede** adds a wall, and each wall
+    can be deleted.
+  - **Dimensioning:** objects and furniture now have a per-axis **size** (L·A·P)
+    and **rotation**, so the A/C, blinds, and any prop can be scaled and oriented.
+  - **Rooms:** can now be deleted from the inspector.
+- **Realistic models.** All props and devices were redrawn with smoother
+  shading and real materials (wood, fabric, brushed metal, ceramic, glass):
+  - Lights are pendant lamps; the climate device is a wall-mounted **A/C split
+    unit** with a status LED; covers are proper **venetian blinds** that drop slat
+    by slat; sensors are ceiling domes. Windows gained frames + a centre mullion.
+
+## 0.4.0
+- **Furniture / props.** A new `furniture[]` layer adds low-poly, non-interactive
+  pieces in the same flat-shaded style: sofa, single & double bed, table, chair(s),
+  side cabinet, painting, shower, sink, kitchen run (cabinets + counter + fridge),
+  and bench. In the editor use **+ Móvel** to add one, then pick its type, colour
+  and rotation; drag to move, delete, and **Guardar** like everything else.
+
 ## 0.3.0
 - **In-browser editor.** An **Editar** button turns the panel into an editor:
   - **Objects:** add (`+ Objeto`), select, drag on the floor to move, delete, and

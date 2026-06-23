@@ -1,5 +1,5 @@
 name: Casa 3D
-version: "0.3.0"
+version: "0.5.0"
 slug: casa3d
 description: Gémeo digital 3D interativo da tua casa, dentro do Home Assistant.
 url: https://github.com/SEU-UTILIZADOR/casa3d-addon
