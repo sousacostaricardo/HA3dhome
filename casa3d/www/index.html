@@ -95,9 +95,22 @@
 
 <div id="loader"><div class="bar"><i></i></div><span>a projetar a casa</span></div>
 
-<script src="./three.min.js"></script>
-<script src="./OrbitControls.js"></script>
+<script src="./three.min.js?v=011"></script>
+<script src="./OrbitControls.js?v=011"></script>
 <script>
+/* Guard: if the bundled 3D libs didn't load, say so clearly instead of a silent console error. */
+(function(){
+  var missing = (typeof THREE==='undefined') ? 'three.min.js'
+              : (typeof THREE.OrbitControls!=='function') ? 'OrbitControls.js' : null;
+  if(missing){
+    var l=document.getElementById('loader');
+    if(l){ l.innerHTML='<div style="max-width:300px;text-align:center;font-family:monospace;color:#ffb9a6;font-size:12px;line-height:1.6">'
+      +'Ficheiro 3D não carregou:<br><b>'+missing+'</b><br><br>'
+      +'Faz <b>Rebuild</b> ao add-on (menu ⋮) e recarrega a página. '
+      +'Confirma que <code>'+missing+'</code> está em <code>casa3d/www/</code>.</div>'; }
+    throw new Error('Casa 3D: '+missing+' failed to load');
+  }
+})();
 /* ============================================================================
    CASA 3D — Home Assistant add-on frontend.
    Talks to the add-on's bridge server:
