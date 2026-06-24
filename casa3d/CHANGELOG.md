@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+- **More props:** table lamp, LED TV, low TV cabinet, side table, dining
+  pendant light, curtains, rugs (rectangular + round), and potted plants — all
+  in the realistic style. New `elev` field (Altura do chão) lets a prop sit on a
+  surface (e.g. a lamp on a side table) or mount at any height.
+- **Editable floors:** rooms can now be **moved** (tap to select, tap again and
+  drag) and **resized** (Largura X / Profund. Z, scaled from the centre) or
+  repositioned numerically (Centro X/Z) right in the inspector.
+
 ## 0.5.0
 - **Edit every object.** The editor now selects and edits all object classes:
   - **Walls:** click a wall to edit its endpoints (A/B x·z) and its openings —

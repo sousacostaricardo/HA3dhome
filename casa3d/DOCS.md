@@ -30,9 +30,11 @@ filename. Files without a `rooms` array are ignored.
 - **walls[]** — `a`/`b` are `[x,z]` endpoints; `o[]` are openings with
   `at` (0..1 along the wall), `w` (width, m), `k` (`"door"` or `"win"`).
 - **furniture[]** — decorative props (no entity). `id`, `kind`, `pos` `[x,z]`,
-  optional `rot` (degrees), `size` `[sx,sy,sz]` (per-axis scale) and `tone`
-  (decimal colour). `kind` is one of `sofa | bed | bed_double | table | chair |
-  chairs | cabinet | painting | shower | sink | kitchen | bench`.
+  optional `rot` (degrees), `size` `[sx,sy,sz]` (per-axis scale), `elev`
+  (height off the floor, m) and `tone` (decimal colour). `kind` is one of
+  `sofa | bed | bed_double | table | sidetable | chair | chairs | bench |
+  cabinet | tvstand | tv | painting | tablelamp | dininglight | curtains |
+  rug | rug_round | plant | shower | sink | kitchen`.
 - **devices[]** — `id`, `entity` (your real HA entity_id), `type`
   (`light` | `cover` | `climate` | `sensor`), `name`, `room`, `pos` `[x,z]`.
   Optional `rot` (degrees) and `size` `[sx,sy,sz]` (per-axis scale) orient and
