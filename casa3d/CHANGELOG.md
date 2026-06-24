@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1
+- **Surface snapping.** Dragging a furniture prop now drops it onto the top of
+  whatever furniture is directly beneath it (a table lamp lands on the side
+  table, a TV on the cabinet) and snaps back to the floor over open ground —
+  the elevation is set automatically. Wall/ceiling props (painting, curtains,
+  dining light) are excluded and keep their manual height.
+
 ## 0.6.0
 - **More props:** table lamp, LED TV, low TV cabinet, side table, dining
   pendant light, curtains, rugs (rectangular + round), and potted plants — all

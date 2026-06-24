@@ -182,8 +182,8 @@
 
 <div id="loader"><div class="bar"><i></i></div><span>a projetar a casa</span></div>
 
-<script src="./three.min.js?v=060"></script>
-<script src="./OrbitControls.js?v=060"></script>
+<script src="./three.min.js?v=061"></script>
+<script src="./OrbitControls.js?v=061"></script>
 <script>
 /* Guard: if the bundled 3D libs didn't load, say so clearly instead of a silent console error. */
 (function(){
@@ -963,6 +963,16 @@ function pointerGround(e){
   ndc.x=(e.clientX/innerWidth)*2-1; ndc.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(ndc,camera);
   const p=new THREE.Vector3(); return ray.ray.intersectPlane(groundPlane,p)?p:null;
 }
+/* surface snapping: the top of the furniture directly under (x,z), else the floor (0) */
+const downRay=new THREE.Raycaster();
+const NOSNAP=new Set(['painting','curtains','dininglight']);   // wall/ceiling-mounted props
+function surfaceBelow(x,z,exclude){
+  downRay.set(new THREE.Vector3(x,12,z), new THREE.Vector3(0,-1,0));
+  const targets=[]; furniture.forEach(f=>{ if(f!==exclude) targets.push(f.root); });
+  const hits=downRay.intersectObjects(targets,true);
+  for(const h of hits){ if(h.point.y>0.02 && h.point.y<11.9) return h.point.y; }
+  return 0;
+}
 renderer.domElement.addEventListener('pointerdown',e=>{
   if(!editMode) return;
   ndc.x=(e.clientX/innerWidth)*2-1; ndc.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(ndc,camera);
@@ -998,7 +1008,9 @@ renderer.domElement.addEventListener('pointermove',e=>{
   if(!dragRec) return;
   const p=pointerGround(e); if(!p) return;
   dragRec.def.pos=[+p.x.toFixed(2),+p.z.toFixed(2)];
-  dragRec.root.position.set(p.x,dragRec.def.elev||0,p.z);
+  let y=dragRec.def.elev||0;
+  if(dragRec.kind && !NOSNAP.has(dragRec.kind)){ y=surfaceBelow(p.x,p.z,dragRec); dragRec.def.elev=+y.toFixed(2); }
+  dragRec.root.position.set(p.x,y,p.z);
   if(selBox)selBox.update(); dirty=true;
 });
 addEventListener('pointerup',()=>{

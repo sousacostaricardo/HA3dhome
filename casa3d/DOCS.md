@@ -57,14 +57,18 @@ Click **Editar** in the bottom dock to enter edit mode:
   name, entity, type, room and click-action; **drag it on the floor** to move it;
   **Eliminar** removes it.
 - **+ Móvel** adds a furniture prop. Select it to pick its type, colour,
-  rotation and **dimensions** (L·A·P); drag to move, **Eliminar móvel** to remove.
+  rotation, **dimensions** (L·A·P) and **height off the floor**; drag to move,
+  **Eliminar móvel** to remove. Dragging a prop over another (e.g. a lamp over a
+  side table) **snaps it onto that surface**; over open floor it drops back to 0.
+  Wall/ceiling props (painting, curtains, dining light) keep their set height.
 - **+ Parede** adds a wall. Click any wall to edit its endpoints and its
   openings — add/remove windows & doors and set each one's position and width
   (this is how you resize a window's glass). Each wall can be deleted.
 - Devices (incl. the A/C and blinds) also expose **rotation** and **dimensions**
   in their inspector, so you can size and face them to a wall.
 - **Paredes** still sets the global wall colour/texture for the whole plan.
-- Click a **room's floor** to change its colour and texture.
+- Click a **room's floor** to change its colour, texture, **size** (Largura X /
+  Profund. Z) and **position** (Centro X/Z). Tap the floor again and drag to move it.
 - **Paredes** sets the colour and texture for all walls.
 - **Guardar** writes everything back to the plan file that's selected in the
   dropdown (or to `casa3d.json` if you started from the built-in demo).
