@@ -35,6 +35,10 @@ filename. Files without a `rooms` array are ignored.
   `sofa | bed | bed_double | table | sidetable | chair | chairs | bench |
   cabinet | tvstand | tv | painting | tablelamp | dininglight | curtains |
   rug | rug_round | plant | shower | sink | kitchen`.
+  Optional `action` makes a prop tappable — same shape as a device's `action`,
+  but include the target `entity` (the prop has none of its own), e.g.
+  `{ "type": "panel", "entity": "media_player.sala" }` on a TV prop, or
+  `{ "type": "toggle", "entity": "cover.sala" }` on a curtain.
 - **devices[]** — `id`, `entity` (your real HA entity_id), `type`
   (`light` | `cover` | `climate` | `sensor`), `name`, `room`, `pos` `[x,z]`.
   Optional `rot` (degrees) and `size` `[sx,sy,sz]` (per-axis scale) orient and
@@ -57,8 +61,8 @@ Click **Editar** in the bottom dock to enter edit mode:
   name, entity, type, room and click-action; **drag it on the floor** to move it;
   **Eliminar** removes it.
 - **+ Móvel** adds a furniture prop. Select it to pick its type, colour,
-  rotation, **dimensions** (L·A·P) and **height off the floor**; drag to move,
-  **Eliminar móvel** to remove. Dragging a prop over another (e.g. a lamp over a
+  rotation, **dimensions** (L·A·P), **height off the floor** and a **click
+  action** (with its target entity); drag to move, **Eliminar móvel** to remove. Dragging a prop over another (e.g. a lamp over a
   side table) **snaps it onto that surface**; over open floor it drops back to 0.
   Wall/ceiling props (painting, curtains, dining light) keep their set height.
 - **+ Parede** adds a wall. Click any wall to edit its endpoints and its

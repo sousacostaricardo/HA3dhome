@@ -182,8 +182,8 @@
 
 <div id="loader"><div class="bar"><i></i></div><span>a projetar a casa</span></div>
 
-<script src="./three.min.js?v=061"></script>
-<script src="./OrbitControls.js?v=061"></script>
+<script src="./three.min.js?v=062"></script>
+<script src="./OrbitControls.js?v=062"></script>
 <script>
 /* Guard: if the bundled 3D libs didn't load, say so clearly instead of a silent console error. */
 (function(){
@@ -268,6 +268,7 @@ function actionOf(def){
   if(def.type==="climate"||dom==="climate") return "panel";
   return "none";
 }
+function entityOf(def){ return (def.action&&def.action.entity)||def.entity; }
 function clickable(d){ return actionOf(d.def)!=="none"; }
 
 /* ---------- scene -------------------------------------------------------- */
@@ -868,23 +869,26 @@ function openDashboard(path){
   try{ if(window.top){ window.top.location.href=url; return; } }catch(e){}
   window.location.href=url;
 }
-function activate(d){
-  const a=actionOf(d.def), ac=d.def.action||{};
-  pulse(d);
+/* Works for any record (device or furniture) carrying def.action. The action's
+   target entity is def.action.entity, falling back to def.entity for devices. */
+function activate(rec){
+  const def=rec.def, a=actionOf(def), ac=def.action||{}, entity=entityOf(def);
+  pulse(rec);
   if(a==="none") return;
-  if(a==="panel"){ openSheet(d.def.entity,d.def.type); return; }
-  if(a==="moreinfo"){ openMoreInfo(d.def.entity); return; }
   if(a==="dashboard"){ openDashboard(ac.path); return; }
+  if(!entity && a!=="service"){ return; }
+  if(a==="panel"){ openSheet(entity,def.type); return; }
+  if(a==="moreinfo"){ openMoreInfo(entity); return; }
   if(a==="service"){
-    if(DEMO){ simToggle(d); applyAll(); return; }
-    callService(ac.domain,ac.service,d.def.entity,ac.data); refreshSoon(); return;
+    if(DEMO){ simToggle(rec); applyAll(); return; }
+    callService(ac.domain,ac.service,entity,ac.data); refreshSoon(); return;
   }
   /* toggle (default) */
-  if(DEMO){ simToggle(d); applyAll(); return; }
-  callService(d.def.entity.split('.')[0],'toggle',d.def.entity); refreshSoon();
+  if(DEMO){ simToggle(rec); applyAll(); return; }
+  callService(entity.split('.')[0],'toggle',entity); refreshSoon();
 }
-function simToggle(d){
-  const s=SIM[d.def.entity]; if(!s)return; const dom=d.def.entity.split('.')[0];
+function simToggle(rec){
+  const entity=entityOf(rec.def); const s=SIM[entity]; if(!s)return; const dom=entity.split('.')[0];
   if(dom==="light")s.state=s.state==="on"?"off":"on";
   else if(dom==="cover"){const open=(s.attributes.current_position||0)>5;s.attributes.current_position=open?0:100;s.state=open?"closed":"open";}
   else if(dom==="climate"){let t=s.attributes.current_temperature||21;t=t>=24?18:t+1;s.attributes.current_temperature=t;}
@@ -909,13 +913,15 @@ renderer.domElement.addEventListener('pointerup',e=>{
   if(!down)return; const moved=Math.hypot(e.clientX-down.x,e.clientY-down.y); const dt=performance.now()-down.t; down=null;
   if(editMode||moved>6||dt>500)return;
   ndc.x=(e.clientX/innerWidth)*2-1; ndc.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(ndc,camera);
-  const targets=[]; devices.forEach(d=>{if(!clickable(d))return; d.hit.forEach(h=>{h.userData._d=d;targets.push(h);});});
+  const targets=[];
+  devices.forEach(d=>{if(!clickable(d))return; d.hit.forEach(h=>{h.userData._d=d;targets.push(h);});});
+  furniture.forEach(f=>{if(actionOf(f.def)==="none")return; f.root.userData._d=f; targets.push(f.root);});
   const hit=ray.intersectObjects(targets,true)[0]; if(hit){let o=hit.object;while(o&&!o.userData._d)o=o.parent;if(o)activate(o.userData._d);}
 });
 
 /* ---------- pulses ------------------------------------------------------- */
 let pulses=[];
-function pulse(d){const node=d.hit[0];
+function pulse(d){const node=(d.hit&&d.hit[0])||d.root;
   const ring=new THREE.Mesh(new THREE.RingGeometry(0.2,0.28,24),
     new THREE.MeshBasicMaterial({color:0xEAEEF3,transparent:true,opacity:0.8,side:THREE.DoubleSide,depthWrite:false}));
   ring.rotation.x=-Math.PI/2; ring.position.copy(node.getWorldPosition(new THREE.Vector3())); ring.position.y=0.05;
@@ -1065,6 +1071,8 @@ function renderFurnitureInspector(f){
     <div class="fld"><label id="m_rotl">Rotação ${def.rot||0}°</label><input type="range" id="m_rot" min="0" max="345" step="15" value="${def.rot||0}"></div>
     ${dimFieldsHTML(def,false)}
     <div class="fld"><label>Divisão</label><select id="m_room">${roomOpts}</select></div>
+    <div class="fld"><label>Ação ao clicar</label><select id="m_act">${opt(ACTIONS,def.action?def.action.type:'')}</select></div>
+    <div id="actparams"></div>
     <div class="hint">Posição ${def.pos[0]}, ${def.pos[1]} m · arrasta no chão para mover.</div>
     <button class="btn danger" id="m_del" style="width:100%">Eliminar móvel</button>`;
   inspBody.querySelector('#m_kind').onchange=e=>{def.kind=e.target.value;rebuildFurniture(f);dirty=true;};
@@ -1072,8 +1080,12 @@ function renderFurnitureInspector(f){
   inspBody.querySelector('#m_rot').oninput=e=>{def.rot=+e.target.value;f.root.rotation.y=def.rot*Math.PI/180;
     inspBody.querySelector('#m_rotl').textContent='Rotação '+def.rot+'°'; if(selBox)selBox.update(); dirty=true;};
   inspBody.querySelector('#m_room').onchange=e=>{def.room=e.target.value;dirty=true;};
+  inspBody.querySelector('#m_act').onchange=e=>{const t=e.target.value;
+    if(!t)delete def.action; else def.action=Object.assign({},def.action,{type:t});
+    renderActParams(def,true);dirty=true;};
   inspBody.querySelector('#m_del').onclick=deleteSelected;
   wireDim(def,f.root,false);
+  renderActParams(def,true);
 }
 function renderDeviceInspector(d){
   inspTitle.textContent='Objeto';
@@ -1095,24 +1107,30 @@ function renderDeviceInspector(d){
   inspBody.querySelector('#f_type').onchange=e=>{def.type=e.target.value;rebuildDevice(d);dirty=true;};
   inspBody.querySelector('#f_act').onchange=e=>{const t=e.target.value;
     if(!t)delete def.action; else def.action=Object.assign({},def.action,{type:t});
-    renderActParams(def);buildRowsUI();refreshUI();dirty=true;};
+    renderActParams(def,false);buildRowsUI();refreshUI();dirty=true;};
   inspBody.querySelector('#f_del').onclick=deleteSelected;
-  renderActParams(def);
+  renderActParams(def,false);
   wireDim(def,d.root,true);
 }
-function renderActParams(def){
+/* withEntity: props have no entity of their own, so the action carries its target. */
+function renderActParams(def,withEntity){
   const box=inspBody.querySelector('#actparams'); if(!box) return;
   const a=def.action||{}, t=a.type||'';
-  if(t==='service'){
-    box.innerHTML=`<div class="fld row2"><div style="flex:1"><label>Domínio</label><input id="p_dom" value="${esc(a.domain)}"></div><div style="flex:1"><label>Serviço</label><input id="p_srv" value="${esc(a.service)}"></div></div>
+  let html='';
+  if(withEntity && ['toggle','panel','moreinfo','service'].includes(t))
+    html+=`<div class="fld"><label>Entidade da ação (entity_id)</label><input id="p_ent" value="${esc(a.entity)}" placeholder="ex: media_player.sala"></div>`;
+  if(t==='service')
+    html+=`<div class="fld row2"><div style="flex:1"><label>Domínio</label><input id="p_dom" value="${esc(a.domain)}"></div><div style="flex:1"><label>Serviço</label><input id="p_srv" value="${esc(a.service)}"></div></div>
       <div class="fld"><label>Dados (JSON, opcional)</label><input id="p_data" value="${esc(a.data?JSON.stringify(a.data):'')}"></div>`;
-    box.querySelector('#p_dom').oninput=e=>{def.action.domain=e.target.value.trim();dirty=true;};
-    box.querySelector('#p_srv').oninput=e=>{def.action.service=e.target.value.trim();dirty=true;};
-    box.querySelector('#p_data').oninput=e=>{try{def.action.data=e.target.value?JSON.parse(e.target.value):undefined;e.target.style.borderColor='';}catch(_){e.target.style.borderColor='var(--ember)';}dirty=true;};
-  }else if(t==='dashboard'){
-    box.innerHTML=`<div class="fld"><label>Caminho do dashboard</label><input id="p_path" value="${esc(a.path)}" placeholder="/lovelace/clima"></div>`;
-    box.querySelector('#p_path').oninput=e=>{def.action.path=e.target.value.trim();dirty=true;};
-  }else box.innerHTML='';
+  else if(t==='dashboard')
+    html+=`<div class="fld"><label>Caminho do dashboard</label><input id="p_path" value="${esc(a.path)}" placeholder="/lovelace/clima"></div>`;
+  box.innerHTML=html;
+  const q=id=>box.querySelector(id);
+  if(q('#p_ent'))  q('#p_ent').oninput =e=>{def.action.entity=e.target.value.trim();dirty=true;};
+  if(q('#p_dom'))  q('#p_dom').oninput =e=>{def.action.domain=e.target.value.trim();dirty=true;};
+  if(q('#p_srv'))  q('#p_srv').oninput =e=>{def.action.service=e.target.value.trim();dirty=true;};
+  if(q('#p_data')) q('#p_data').oninput=e=>{try{def.action.data=e.target.value?JSON.parse(e.target.value):undefined;e.target.style.borderColor='';}catch(_){e.target.style.borderColor='var(--ember)';}dirty=true;};
+  if(q('#p_path')) q('#p_path').oninput=e=>{def.action.path=e.target.value.trim();dirty=true;};
 }
 function renderRoomInspector(r){
   inspTitle.textContent='Divisão';

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.2
+- **Furniture can trigger actions too.** Props now take the same click-action as
+  devices (toggle / service / in-panel dashboard / more-info / Lovelace / none).
+  Since a prop has no entity of its own, the action carries a target
+  `entity` — e.g. tap a TV prop to open a `media_player` dashboard, or a curtain
+  prop to toggle a `cover`. Set it in the móvel inspector under "Ação ao clicar".
+
 ## 0.6.1
 - **Surface snapping.** Dragging a furniture prop now drops it onto the top of
   whatever furniture is directly beneath it (a table lamp lands on the side
