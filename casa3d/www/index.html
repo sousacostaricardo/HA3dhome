@@ -182,8 +182,8 @@
 
 <div id="loader"><div class="bar"><i></i></div><span>a projetar a casa</span></div>
 
-<script src="./three.min.js?v=062"></script>
-<script src="./OrbitControls.js?v=062"></script>
+<script src="./three.min.js?v=063"></script>
+<script src="./OrbitControls.js?v=063"></script>
 <script>
 /* Guard: if the bundled 3D libs didn't load, say so clearly instead of a silent console error. */
 (function(){
@@ -939,7 +939,7 @@ document.getElementById('btnNight').onclick=function(){
 controls.addEventListener('start',()=>{if(!editMode){controls.autoRotate=false;document.getElementById('btnSpin').classList.remove('active');}});
 
 /* ======================= EDITOR ========================================== */
-let editMode=false, selected=null, dragRec=null, dragRoom=null, dirty=false, selBox=null;
+let editMode=false, selected=null, dragRec=null, dragRoom=null, dragPid=0, dirty=false, selBox=null;
 const groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
 const editbar=document.getElementById('editbar');
 const insp=document.getElementById('insp'), inspBody=document.getElementById('inspBody'), inspTitle=document.getElementById('inspTitle');
@@ -979,17 +979,35 @@ function surfaceBelow(x,z,exclude){
   for(const h of hits){ if(h.point.y>0.02 && h.point.y<11.9) return h.point.y; }
   return 0;
 }
-renderer.domElement.addEventListener('pointerdown',e=>{
-  if(!editMode) return;
+/* Find a draggable device/furniture under the pointer: precise mesh hit first,
+   then the nearest object centre within ~48px (forgiving for small props/touch). */
+function pickDraggable(e){
   ndc.x=(e.clientX/innerWidth)*2-1; ndc.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(ndc,camera);
   const roots=[];
-  devices.forEach(d=>{d.root.userData._dev=d;d.root.userData._fur=null;roots.push(d.root);});
-  furniture.forEach(f=>{f.root.userData._fur=f;f.root.userData._dev=null;roots.push(f.root);});
+  devices.forEach(d=>{d.root.userData._rec=d;roots.push(d.root);});
+  furniture.forEach(f=>{f.root.userData._rec=f;roots.push(f.root);});
   const dh=ray.intersectObjects(roots,true)[0];
-  if(dh){ let o=dh.object; while(o&&!o.userData._dev&&!o.userData._fur)o=o.parent;
-    if(o){ if(o.userData._dev){const d=o.userData._dev;setSel({kind:'device',d,obj:o});dragRec=d;}
-           else{const f=o.userData._fur;setSel({kind:'furniture',f,obj:o});dragRec=f;}
-           controls.enabled=false; return; } }
+  if(dh){ let o=dh.object; while(o&&!o.userData._rec)o=o.parent; if(o)return o.userData._rec; }
+  let best=null,bestD=40; const wp=new THREE.Vector3();
+  devices.concat(furniture).forEach(rec=>{
+    rec.root.getWorldPosition(wp); const v=wp.clone().project(camera);
+    if(v.z>1) return;
+    const sx=(v.x*0.5+0.5)*innerWidth, sy=(-v.y*0.5+0.5)*innerHeight;
+    const d=Math.hypot(sx-e.clientX,sy-e.clientY); if(d<bestD){bestD=d;best=rec;}
+  });
+  return best;
+}
+function grabPointer(e){ controls.enabled=false; dragPid=e.pointerId; try{renderer.domElement.setPointerCapture(e.pointerId);}catch(_){} }
+/* Capture phase so this runs BEFORE OrbitControls and can disable orbit on grab. */
+renderer.domElement.addEventListener('pointerdown',e=>{
+  if(!editMode) return;
+  const rec=pickDraggable(e);
+  if(rec){
+    const isDev=!!rec.apply;
+    setSel(isDev?{kind:'device',d:rec,obj:rec.root}:{kind:'furniture',f:rec,obj:rec.root});
+    dragRec=rec; grabPointer(e); return;
+  }
+  ndc.x=(e.clientX/innerWidth)*2-1; ndc.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(ndc,camera);
   const picks=[];
   Object.keys(roomMeshes).forEach(id=>{roomMeshes[id].floor.userData._rid=id;picks.push(roomMeshes[id].floor);});
   wallGroups.forEach((wg,wi)=>{ if(wg){wg.userData._wi=wi;picks.push(wg);} });
@@ -998,14 +1016,14 @@ renderer.domElement.addEventListener('pointerdown',e=>{
     if(o.userData._rid){ const r=(HOME.rooms||[]).find(x=>x.id===o.userData._rid);
       if(r){
         if(selected&&selected.kind==='room'&&selected.r===r){           // 2nd tap on same room -> drag it
-          const sp=pointerGround(e); if(sp){dragRoom={r,sx:sp.x,sz:sp.z};controls.enabled=false;} return;
+          const sp=pointerGround(e); if(sp){dragRoom={r,sx:sp.x,sz:sp.z};grabPointer(e);} return;
         }
         setSel({kind:'room',r,obj:roomMeshes[r.id].group}); return;
       } }
     let w=o; while(w&&w.userData._wi==null)w=w.parent;
     if(w&&w.userData._wi!=null){ setSel({kind:'wall',wi:w.userData._wi,obj:w}); return; } }
   setSel(null);
-});
+}, true);
 renderer.domElement.addEventListener('pointermove',e=>{
   if(!editMode) return;
   if(dragRoom){ const p=pointerGround(e); if(!p)return;
@@ -1020,6 +1038,7 @@ renderer.domElement.addEventListener('pointermove',e=>{
   if(selBox)selBox.update(); dirty=true;
 });
 addEventListener('pointerup',()=>{
+  if(dragPid){ try{renderer.domElement.releasePointerCapture(dragPid);}catch(_){} dragPid=0; }
   if(dragRoom){
     const g=roomMeshes[dragRoom.r.id].group, dx=g.position.x, dz=g.position.z;
     if(dx||dz){ dragRoom.r.poly=dragRoom.r.poly.map(([x,z])=>[+(x+dx).toFixed(2),+(z+dz).toFixed(2)]); rebuildRoom(dragRoom.r); }

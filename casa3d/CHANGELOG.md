@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.3
+- **Fix: dragging objects now works on mouse and touch.** The grab is handled in
+  the pointer capture phase so it disables camera-orbit *before* OrbitControls
+  starts, and uses `setPointerCapture` so every move/up event is delivered
+  (previously the camera control could swallow the drag, especially on touch).
+  Grabbing is also forgiving now: a precise hit on the object, or the nearest
+  object within ~40 px of the tap — so small props (lamps, sensors) are easy to
+  pick up. Works for devices, furniture, and the room-drag.
+
 ## 0.6.2
 - **Furniture can trigger actions too.** Props now take the same click-action as
   devices (toggle / service / in-panel dashboard / more-info / Lovelace / none).
