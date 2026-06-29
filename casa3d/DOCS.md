@@ -32,9 +32,10 @@ filename. Files without a `rooms` array are ignored.
 - **furniture[]** — decorative props (no entity). `id`, `kind`, `pos` `[x,z]`,
   optional `rot` (degrees), `size` `[sx,sy,sz]` (per-axis scale), `elev`
   (height off the floor, m) and `tone` (decimal colour). `kind` is one of
-  `sofa | bed | bed_double | table | sidetable | chair | chairs | bench |
-  cabinet | tvstand | tv | painting | tablelamp | dininglight | curtains |
-  rug | rug_round | plant | shower | sink | kitchen`.
+  `sofa | bed | bed_double | table | sidetable | desk | desk_l | chair |
+  chairs | bench | cabinet | tvstand | tv | tv55 | monitor | painting |
+  painting2 | tablelamp | dininglight | curtains | rug | rug_round | plant |
+  railing | fridge | counter | kitchen | shower | sink | toilet | bidet`.
   Optional `action` makes a prop tappable — same shape as a device's `action`,
   but include the target `entity` (the prop has none of its own), e.g.
   `{ "type": "panel", "entity": "media_player.sala" }` on a TV prop, or

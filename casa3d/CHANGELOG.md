@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.1
+- **Fix: high/elevated objects can now be moved.** Dragging previously projected
+  the cursor onto the floor, so wall-mounted and raised props (paintings, A/C,
+  curtains, ceiling/dining lights, railings, anything snapped onto a surface)
+  wouldn't follow when the camera wasn't looking straight down. The drag now
+  happens on a horizontal plane at the height you grabbed, and keeps the grab
+  offset so the object no longer jumps when its shape is off-centre.
+
+## 0.7.0
+- **More props:** balcony railing (`railing`), standalone fridge (`fridge`),
+  kitchen counter/island (`counter`), desk (`desk`) and L-desk (`desk_l`),
+  toilet (`toilet`), bidet (`bidet`), computer monitor (`monitor`), 55" TV
+  (`tv55`) and a colourful kids painting (`painting2`). Sensible default colours
+  per kind (white sanitaryware, steel fridge, etc.), still overridable.
+- **Click priority fixed** so the mouse reaches every object: precise object →
+  wall → forgiving object → floor. Walls and floors are selectable/editable/
+  deletable again even with the forgiving grab active near props.
+
 ## 0.6.3
 - **Fix: dragging objects now works on mouse and touch.** The grab is handled in
   the pointer capture phase so it disables camera-orbit *before* OrbitControls

@@ -13,7 +13,7 @@ RUN chmod a+x /run.sh
 
 LABEL \
   io.hass.name="Casa 3D" \
-  io.hass.version="0.6.3" \
+  io.hass.version="0.7.1" \
   io.hass.type="app" \
   io.hass.arch="aarch64|amd64"
 

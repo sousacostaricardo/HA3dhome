@@ -182,8 +182,8 @@
 
 <div id="loader"><div class="bar"><i></i></div><span>a projetar a casa</span></div>
 
-<script src="./three.min.js?v=063"></script>
-<script src="./OrbitControls.js?v=063"></script>
+<script src="./three.min.js?v=071"></script>
+<script src="./OrbitControls.js?v=071"></script>
 <script>
 /* Guard: if the bundled 3D libs didn't load, say so clearly instead of a silent console error. */
 (function(){
@@ -571,11 +571,16 @@ const MAT={
 };
 SHARED.add(EDGE); Object.values(MAT).forEach(m=>SHARED.add(m));
 const FURNI=[["sofa","Sofá"],["bed","Cama"],["bed_double","Cama casal"],["table","Mesa"],
-  ["sidetable","Mesa de apoio"],["chair","Cadeira"],["chairs","Cadeiras"],["bench","Banco"],
-  ["cabinet","Aparador"],["tvstand","Móvel de TV"],["tv","TV LED"],["painting","Quadro"],
+  ["sidetable","Mesa de apoio"],["desk","Secretária"],["desk_l","Secretária L"],
+  ["chair","Cadeira"],["chairs","Cadeiras"],["bench","Banco"],
+  ["cabinet","Aparador"],["tvstand","Móvel de TV"],["tv","TV LED"],["tv55","TV 55\""],
+  ["monitor","Monitor"],["painting","Quadro"],["painting2","Quadro infantil"],
   ["tablelamp","Candeeiro de mesa"],["dininglight","Luz de jantar"],["curtains","Cortinados"],
-  ["rug","Tapete"],["rug_round","Tapete redondo"],["plant","Planta"],
-  ["shower","Duche"],["sink","Lavatório"],["kitchen","Cozinha"]];
+  ["rug","Tapete"],["rug_round","Tapete redondo"],["plant","Planta"],["railing","Gradeamento"],
+  ["fridge","Frigorífico"],["counter","Bancada"],["kitchen","Cozinha"],
+  ["shower","Duche"],["sink","Lavatório"],["toilet","Sanita"],["bidet","Bidé"]];
+const DEF_TONE={fridge:0xdfe6ec,toilet:0xeef2f5,bidet:0xeef2f5,counter:0x3a4452,
+  desk:0x6f5b43,desk_l:0x6f5b43,monitor:0x232a33,tv55:0x232a33,railing:0x9aa3ad};
 function tint(hex,amt){const c=new THREE.Color(hex);c.offsetHSL(0,0,amt);return c.getHex();}
 function fmat(color,rough,metal){return new THREE.MeshStandardMaterial({color,roughness:rough==null?0.9:rough,metalness:metal||0});}
 function B(w,h,d){return new THREE.BoxGeometry(w,h,d);}
@@ -588,7 +593,7 @@ function buildFurniture(){
 }
 function makeFurniture(def){
   const root=new THREE.Group(); root.position.set(def.pos[0],def.elev||0,def.pos[1]); root.rotation.y=(def.rot||0)*Math.PI/180;
-  const b=def.tone!=null?def.tone:0x44505f;
+  const b=def.tone!=null?def.tone:(DEF_TONE[def.kind]||0x44505f);
   switch(def.kind){
     case "sofa": fSofa(root,b); break;
     case "bed": fBed(root,b,0.95); break;
@@ -598,6 +603,10 @@ function makeFurniture(def){
     case "cabinet": fCabinet(root,b); break;
     case "tvstand": fTVStand(root,b); break;
     case "tv": fTV(root,b); break;
+    case "tv55": fTV55(root,b); break;
+    case "monitor": fMonitor(root,b); break;
+    case "desk": fDesk(root,b); break;
+    case "desk_l": fDeskL(root,b); break;
     case "sidetable": fSideTable(root,b); break;
     case "tablelamp": fTableLamp(root,b); break;
     case "dininglight": fDiningLight(root,b); break;
@@ -605,9 +614,15 @@ function makeFurniture(def){
     case "rug": fRug(root,b); break;
     case "rug_round": fRugRound(root,b); break;
     case "plant": fPlant(root,b); break;
+    case "railing": fRailing(root,b); break;
     case "painting": fPainting(root,b); break;
+    case "painting2": fPainting2(root,b); break;
     case "shower": fShower(root,b); break;
     case "sink": fSink(root,b); break;
+    case "toilet": fToilet(root,b); break;
+    case "bidet": fBidet(root,b); break;
+    case "fridge": fFridge(root,b); break;
+    case "counter": fCounter(root,b); break;
     case "kitchen": fKitchen(root,b); break;
     case "bench": fBench(root,b); break;
     case "table": default: fTable(root,b); break;
@@ -749,6 +764,66 @@ function fPlant(g,b){              // planta em vaso
   P(g,new THREE.SphereGeometry(0.28,14,10),leaf,0,0.82,0);
   P(g,new THREE.SphereGeometry(0.2,12,10),leaf,0.13,0.96,0.05);
   P(g,new THREE.SphereGeometry(0.18,12,10),leaf,-0.13,0.72,-0.05);
+}
+function fRailing(g,b){            // varanda / gradeamento
+  const W=2.0,H=1.0; const bal=fmat(b,0.4,0.6);
+  P(g,B(W,0.05,0.06),bal,0,H,0);              // top rail
+  P(g,B(W,0.04,0.05),bal,0,0.12,0);           // bottom rail
+  const N=16; for(let i=0;i<=N;i++){const x=-W/2+i*(W/N); P(g,B(0.022,H,0.022),MAT.steel,x,H/2,0);}
+  P(g,B(0.07,H+0.06,0.07),bal,-W/2,H/2,0); P(g,B(0.07,H+0.06,0.07),bal,W/2,H/2,0);  // end posts
+}
+function fFridge(g,b){             // frigorífico autónomo
+  P(g,B(0.74,1.85,0.7),fmat(b,0.4,0.2),0,0.925,0);
+  P(g,B(0.74,0.02,0.71),MAT.steel,0,1.05,0);           // door seam
+  P(g,B(0.04,0.5,0.05),MAT.metal,0.3,1.4,0.36);        // upper handle
+  P(g,B(0.04,0.4,0.05),MAT.metal,0.3,0.7,0.36);        // lower handle
+}
+function fCounter(g,b){            // bancada / ilha de cozinha
+  P(g,B(1.6,0.85,0.7),fmat(b,0.6),0,0.425,0);
+  P(g,B(1.66,0.06,0.76),MAT.dark,0,0.88,0);            // stone worktop
+  P(g,B(1.5,0.3,0.02),fmat(tint(b,-0.05),0.6),0,0.45,0.355);  // door fronts
+}
+function fDesk(g,b){               // secretária
+  P(g,B(1.4,0.05,0.7),MAT.wood,0,0.75,0);
+  P(g,B(0.4,0.55,0.62),fmat(b,0.5),-0.45,0.37,0);      // drawer pedestal
+  P(g,B(0.36,0.15,0.02),fmat(tint(b,-0.06),0.5),-0.45,0.54,0.32);
+  P(g,B(0.36,0.15,0.02),fmat(tint(b,-0.06),0.5),-0.45,0.34,0.32);
+  P(g,B(0.06,0.72,0.06),MAT.metal,0.6,0.36,-0.3); P(g,B(0.06,0.72,0.06),MAT.metal,0.6,0.36,0.3);
+}
+function fDeskL(g,b){              // secretária em L
+  P(g,B(1.4,0.05,0.7),MAT.wood,0,0.75,0);
+  P(g,B(0.7,0.05,1.2),MAT.wood,-0.35,0.75,-0.95);
+  [[-0.6,-0.3],[0.6,-0.3],[0.6,0.3]].forEach(([x,z])=>P(g,B(0.06,0.72,0.06),MAT.metal,x,0.36,z));
+  P(g,B(0.06,0.72,0.06),MAT.metal,-0.6,0.36,-1.5);
+}
+function fMonitor(g,b){            // ecrã de computador
+  P(g,B(0.58,0.34,0.03),fmat(b,0.3),0,0.72,0);
+  P(g,B(0.54,0.3,0.01),new THREE.MeshStandardMaterial({color:0x0b0f14,roughness:0.2,emissive:0x0a1a22,emissiveIntensity:0.5}),0,0.72,0.02);
+  P(g,B(0.06,0.18,0.05),MAT.dark,0,0.5,0);
+  P(g,B(0.26,0.02,0.16),MAT.dark,0,0.41,0);
+}
+function fTV55(g,b){               // TV 55" LED
+  P(g,B(1.5,0.85,0.05),fmat(b,0.3),0,1.0,0);
+  P(g,B(1.42,0.79,0.02),new THREE.MeshStandardMaterial({color:0x0b0f14,roughness:0.2,emissive:0x0a1a22,emissiveIntensity:0.5}),0,1.0,0.03);
+  P(g,B(0.5,0.04,0.26),MAT.dark,0,0.5,0); P(g,B(0.06,0.5,0.06),MAT.dark,0,0.72,0);
+}
+function fToilet(g,b){             // sanita
+  P(g,B(0.4,0.42,0.16),fmat(b,0.3),0,0.55,-0.22);            // cistern
+  P(g,new THREE.CylinderGeometry(0.2,0.16,0.4,20),fmat(b,0.3),0,0.2,0.05);   // bowl
+  P(g,new THREE.CylinderGeometry(0.22,0.2,0.06,20),fmat(b,0.3),0,0.42,0.05); // seat
+  P(g,B(0.12,0.03,0.04),MAT.metal,0.12,0.77,-0.22);         // flush button
+}
+function fBidet(g,b){              // bidé
+  P(g,new THREE.CylinderGeometry(0.18,0.15,0.4,20),fmat(b,0.3),0,0.2,0);
+  P(g,new THREE.CylinderGeometry(0.15,0.13,0.08,20),MAT.dark,0,0.41,0);
+  P(g,CY(0.014,0.1,8),MAT.metal,0,0.45,-0.17);
+}
+function fPainting2(g,b){          // quadro infantil (colorido)
+  P(g,B(0.66,0.5,0.04),MAT.woodL,0,1.5,0);
+  P(g,B(0.56,0.4,0.05),fmat(0xf2efe6,0.85),0,1.5,0.01);
+  P(g,new THREE.SphereGeometry(0.08,12,10),fmat(0xFFC43D,0.6),-0.13,1.56,0.03);
+  P(g,B(0.1,0.2,0.05),fmat(0x3DD6C4,0.6),0.05,1.46,0.03);
+  P(g,B(0.18,0.07,0.05),fmat(0xFF5C38,0.6),0.14,1.61,0.03);
 }
 
 /* ---------- textures / labels ------------------------------------------- */
@@ -941,6 +1016,8 @@ controls.addEventListener('start',()=>{if(!editMode){controls.autoRotate=false;d
 /* ======================= EDITOR ========================================== */
 let editMode=false, selected=null, dragRec=null, dragRoom=null, dragPid=0, dirty=false, selBox=null;
 const groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+const dragPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0), _tmpV=new THREE.Vector3();
+let dragPlaneY=0, dragOffX=0, dragOffZ=0;
 const editbar=document.getElementById('editbar');
 const insp=document.getElementById('insp'), inspBody=document.getElementById('inspBody'), inspTitle=document.getElementById('inspTitle');
 const PATTERNS=['none','tile','wood','brick','concrete'];
@@ -971,7 +1048,7 @@ function pointerGround(e){
 }
 /* surface snapping: the top of the furniture directly under (x,z), else the floor (0) */
 const downRay=new THREE.Raycaster();
-const NOSNAP=new Set(['painting','curtains','dininglight']);   // wall/ceiling-mounted props
+const NOSNAP=new Set(['painting','painting2','curtains','dininglight','railing']);   // wall/ceiling/floor-fixed props
 function surfaceBelow(x,z,exclude){
   downRay.set(new THREE.Vector3(x,12,z), new THREE.Vector3(0,-1,0));
   const targets=[]; furniture.forEach(f=>{ if(f!==exclude) targets.push(f.root); });
@@ -981,13 +1058,16 @@ function surfaceBelow(x,z,exclude){
 }
 /* Find a draggable device/furniture under the pointer: precise mesh hit first,
    then the nearest object centre within ~48px (forgiving for small props/touch). */
-function pickDraggable(e){
+function preciseObject(e){       // sets ray, returns the device/furniture mesh hit (or null)
   ndc.x=(e.clientX/innerWidth)*2-1; ndc.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(ndc,camera);
   const roots=[];
   devices.forEach(d=>{d.root.userData._rec=d;roots.push(d.root);});
   furniture.forEach(f=>{f.root.userData._rec=f;roots.push(f.root);});
   const dh=ray.intersectObjects(roots,true)[0];
-  if(dh){ let o=dh.object; while(o&&!o.userData._rec)o=o.parent; if(o)return o.userData._rec; }
+  if(dh){ let o=dh.object; while(o&&!o.userData._rec)o=o.parent; if(o)return {rec:o.userData._rec,point:dh.point}; }
+  return null;
+}
+function fuzzyObject(e){          // nearest object centre within ~40px (forgiving grab)
   let best=null,bestD=40; const wp=new THREE.Vector3();
   devices.concat(furniture).forEach(rec=>{
     rec.root.getWorldPosition(wp); const v=wp.clone().project(camera);
@@ -998,30 +1078,36 @@ function pickDraggable(e){
   return best;
 }
 function grabPointer(e){ controls.enabled=false; dragPid=e.pointerId; try{renderer.domElement.setPointerCapture(e.pointerId);}catch(_){} }
-/* Capture phase so this runs BEFORE OrbitControls and can disable orbit on grab. */
+function selectGrab(rec,e,point){
+  const isDev=!!rec.apply;
+  setSel(isDev?{kind:'device',d:rec,obj:rec.root}:{kind:'furniture',f:rec,obj:rec.root});
+  dragRec=rec;
+  if(point){ dragPlaneY=point.y; dragOffX=rec.root.position.x-point.x; dragOffZ=rec.root.position.z-point.z; }
+  else { dragPlaneY=rec.root.position.y; dragOffX=0; dragOffZ=0; }
+  grabPointer(e);
+}
+/* Capture phase so this runs BEFORE OrbitControls and can disable orbit on grab.
+   Priority: precise object > wall > forgiving object > floor — so walls & floors
+   stay clickable even with the forgiving grab. */
 renderer.domElement.addEventListener('pointerdown',e=>{
   if(!editMode) return;
-  const rec=pickDraggable(e);
-  if(rec){
-    const isDev=!!rec.apply;
-    setSel(isDev?{kind:'device',d:rec,obj:rec.root}:{kind:'furniture',f:rec,obj:rec.root});
-    dragRec=rec; grabPointer(e); return;
-  }
-  ndc.x=(e.clientX/innerWidth)*2-1; ndc.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(ndc,camera);
-  const picks=[];
-  Object.keys(roomMeshes).forEach(id=>{roomMeshes[id].floor.userData._rid=id;picks.push(roomMeshes[id].floor);});
-  wallGroups.forEach((wg,wi)=>{ if(wg){wg.userData._wi=wi;picks.push(wg);} });
-  const hit2=ray.intersectObjects(picks,true)[0];
-  if(hit2){ let o=hit2.object;
-    if(o.userData._rid){ const r=(HOME.rooms||[]).find(x=>x.id===o.userData._rid);
-      if(r){
-        if(selected&&selected.kind==='room'&&selected.r===r){           // 2nd tap on same room -> drag it
-          const sp=pointerGround(e); if(sp){dragRoom={r,sx:sp.x,sz:sp.z};grabPointer(e);} return;
-        }
-        setSel({kind:'room',r,obj:roomMeshes[r.id].group}); return;
-      } }
-    let w=o; while(w&&w.userData._wi==null)w=w.parent;
+  const ph=preciseObject(e);                      // also sets `ray`
+  if(ph){ selectGrab(ph.rec,e,ph.point); return; }
+  const wgs=[]; wallGroups.forEach((wg,wi)=>{ if(wg){wg.userData._wi=wi;wgs.push(wg);} });
+  const wh=ray.intersectObjects(wgs,true)[0];
+  const floors=[]; Object.keys(roomMeshes).forEach(id=>{roomMeshes[id].floor.userData._rid=id;floors.push(roomMeshes[id].floor);});
+  const fh=ray.intersectObjects(floors,false)[0];
+  if(wh){ let w=wh.object; while(w&&w.userData._wi==null)w=w.parent;
     if(w&&w.userData._wi!=null){ setSel({kind:'wall',wi:w.userData._wi,obj:w}); return; } }
+  const frec=fuzzyObject(e);
+  if(frec){ selectGrab(frec,e,null); return; }
+  if(fh){ const r=(HOME.rooms||[]).find(x=>x.id===fh.object.userData._rid);
+    if(r){
+      if(selected&&selected.kind==='room'&&selected.r===r){        // 2nd tap on same room -> drag it
+        const sp=pointerGround(e); if(sp){dragRoom={r,sx:sp.x,sz:sp.z};grabPointer(e);} return;
+      }
+      setSel({kind:'room',r,obj:roomMeshes[r.id].group}); return;
+    } }
   setSel(null);
 }, true);
 renderer.domElement.addEventListener('pointermove',e=>{
@@ -1030,11 +1116,14 @@ renderer.domElement.addEventListener('pointermove',e=>{
     const g=roomMeshes[dragRoom.r.id].group; g.position.set(p.x-dragRoom.sx,0,p.z-dragRoom.sz);
     if(selBox)selBox.update(); dirty=true; return; }
   if(!dragRec) return;
-  const p=pointerGround(e); if(!p) return;
-  dragRec.def.pos=[+p.x.toFixed(2),+p.z.toFixed(2)];
+  ndc.x=(e.clientX/innerWidth)*2-1; ndc.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(ndc,camera);
+  dragPlane.constant=-dragPlaneY;                 // drag on a horizontal plane at the grab height
+  const p=ray.ray.intersectPlane(dragPlane,_tmpV); if(!p) return;
+  const nx=p.x+dragOffX, nz=p.z+dragOffZ;
+  dragRec.def.pos=[+nx.toFixed(2),+nz.toFixed(2)];
   let y=dragRec.def.elev||0;
-  if(dragRec.kind && !NOSNAP.has(dragRec.kind)){ y=surfaceBelow(p.x,p.z,dragRec); dragRec.def.elev=+y.toFixed(2); }
-  dragRec.root.position.set(p.x,y,p.z);
+  if(dragRec.kind && !NOSNAP.has(dragRec.kind)){ y=surfaceBelow(nx,nz,dragRec); dragRec.def.elev=+y.toFixed(2); }
+  dragRec.root.position.set(nx,y,nz);
   if(selBox)selBox.update(); dirty=true;
 });
 addEventListener('pointerup',()=>{
