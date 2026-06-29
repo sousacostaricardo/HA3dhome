@@ -182,8 +182,8 @@
 
 <div id="loader"><div class="bar"><i></i></div><span>a projetar a casa</span></div>
 
-<script src="./three.min.js?v=071"></script>
-<script src="./OrbitControls.js?v=071"></script>
+<script src="./three.min.js?v=072"></script>
+<script src="./OrbitControls.js?v=072"></script>
 <script>
 /* Guard: if the bundled 3D libs didn't load, say so clearly instead of a silent console error. */
 (function(){
@@ -1037,7 +1037,7 @@ function setSel(sel){
   selected=sel;
   if(selBox){scene.remove(selBox);selBox.geometry.dispose();selBox=null;}
   if(sel&&sel.obj){selBox=new THREE.BoxHelper(sel.obj,0x3DD6C4);scene.add(selBox);}
-  renderInspector();
+  try{ renderInspector(); }catch(err){ console.error('inspector render failed',err); }
 }
 function selectDevice(d){ setEdit(true); setSel({kind:'device',d,obj:d.root}); }
 
@@ -1067,24 +1067,24 @@ function preciseObject(e){       // sets ray, returns the device/furniture mesh 
   if(dh){ let o=dh.object; while(o&&!o.userData._rec)o=o.parent; if(o)return {rec:o.userData._rec,point:dh.point}; }
   return null;
 }
-function fuzzyObject(e){          // nearest object centre within ~40px (forgiving grab)
-  let best=null,bestD=40; const wp=new THREE.Vector3();
+function fuzzyObject(e){          // nearest object whose VISIBLE centre is within ~50px
+  let best=null,bestD=50,bestC=null; const box=new THREE.Box3(), c=new THREE.Vector3();
   devices.concat(furniture).forEach(rec=>{
-    rec.root.getWorldPosition(wp); const v=wp.clone().project(camera);
-    if(v.z>1) return;
+    box.setFromObject(rec.root); if(box.isEmpty()) return; box.getCenter(c);
+    const v=c.clone().project(camera); if(v.z>1) return;
     const sx=(v.x*0.5+0.5)*innerWidth, sy=(-v.y*0.5+0.5)*innerHeight;
-    const d=Math.hypot(sx-e.clientX,sy-e.clientY); if(d<bestD){bestD=d;best=rec;}
+    const d=Math.hypot(sx-e.clientX,sy-e.clientY); if(d<bestD){bestD=d;best=rec;bestC=c.clone();}
   });
-  return best;
+  return best?{rec:best,point:bestC}:null;
 }
 function grabPointer(e){ controls.enabled=false; dragPid=e.pointerId; try{renderer.domElement.setPointerCapture(e.pointerId);}catch(_){} }
 function selectGrab(rec,e,point){
-  const isDev=!!rec.apply;
-  setSel(isDev?{kind:'device',d:rec,obj:rec.root}:{kind:'furniture',f:rec,obj:rec.root});
-  dragRec=rec;
+  dragRec=rec;                                   // set BEFORE rendering the inspector
   if(point){ dragPlaneY=point.y; dragOffX=rec.root.position.x-point.x; dragOffZ=rec.root.position.z-point.z; }
   else { dragPlaneY=rec.root.position.y; dragOffX=0; dragOffZ=0; }
   grabPointer(e);
+  const isDev=!!rec.apply;
+  setSel(isDev?{kind:'device',d:rec,obj:rec.root}:{kind:'furniture',f:rec,obj:rec.root});
 }
 /* Capture phase so this runs BEFORE OrbitControls and can disable orbit on grab.
    Priority: precise object > wall > forgiving object > floor — so walls & floors
@@ -1100,7 +1100,7 @@ renderer.domElement.addEventListener('pointerdown',e=>{
   if(wh){ let w=wh.object; while(w&&w.userData._wi==null)w=w.parent;
     if(w&&w.userData._wi!=null){ setSel({kind:'wall',wi:w.userData._wi,obj:w}); return; } }
   const frec=fuzzyObject(e);
-  if(frec){ selectGrab(frec,e,null); return; }
+  if(frec){ selectGrab(frec.rec,e,frec.point); return; }
   if(fh){ const r=(HOME.rooms||[]).find(x=>x.id===fh.object.userData._rid);
     if(r){
       if(selected&&selected.kind==='room'&&selected.r===r){        // 2nd tap on same room -> drag it

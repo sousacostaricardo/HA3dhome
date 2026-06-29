@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.2
+- **Fix: furniture (móveis) wouldn't move.** Two causes: the grab set the drag
+  state *after* rendering the inspector, so any inspector hiccup left the object
+  selected but not draggable; and the forgiving grab aimed at the object's floor
+  origin, missing tall/thin props (curtains, railing, paintings, lamps). Now the
+  drag state is set first (and the inspector render is sandboxed), and the
+  forgiving grab targets each object's visible bounding-box centre — which also
+  gives the correct drag height. Furniture moves like devices now.
+
 ## 0.7.1
 - **Fix: high/elevated objects can now be moved.** Dragging previously projected
   the cursor onto the floor, so wall-mounted and raised props (paintings, A/C,
